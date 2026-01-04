@@ -42,6 +42,10 @@ type Game struct {
 	dragOffsetX float64
 	dragOffsetY float64
 	isHot       bool // True for the first frame a card is clicked
+
+	// Input state for resizing
+	resizingCard   *Card
+	resizingCorner int // 0: TL, 1: TR, 2: BL, 3: BR
 }
 
 func NewGame() *Game {
@@ -72,13 +76,89 @@ func (g *Game) Update() error {
 	mx, my := ebiten.CursorPosition()
 	wx, wy := g.screenToWorld(float64(mx), float64(my))
 
-	// --- Card Dragging Logic ---
+	// --- Card Resizing Logic ---
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) {
-		if card := g.getCardAt(wx, wy); card != nil {
-			g.activeCard = card
-			g.dragOffsetX = wx - card.X
-			g.dragOffsetY = wy - card.Y
-			g.isHot = true
+		// Check for corners first
+		for i := len(g.cards) - 1; i >= 0; i-- {
+			card := g.cards[i]
+			corner := g.getCornerAt(card, wx, wy)
+			if corner != -1 {
+				g.resizingCard = card
+				g.resizingCorner = corner
+				break
+			}
+		}
+
+		if g.resizingCard == nil {
+			// If not resizing, try dragging
+			if card := g.getCardAt(wx, wy); card != nil {
+				g.activeCard = card
+				g.dragOffsetX = wx - card.X
+				g.dragOffsetY = wy - card.Y
+				g.isHot = true
+			}
+		}
+	} else if g.resizingCard != nil {
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			card := g.resizingCard
+			minSize := 50.0
+			maxSize := 500.0
+
+			// Snap target coordinates to 50px grid
+			swx := math.Round(wx/50) * 50
+			swy := math.Round(wy/50) * 50
+
+			switch g.resizingCorner {
+			case 0: // TL
+				diffX := card.X - swx
+				diffY := card.Y - swy
+				newW := card.Width + diffX
+				newH := card.Height + diffY
+				if newW >= minSize && newW <= maxSize {
+					card.X = swx
+					card.Width = newW
+				}
+				if newH >= minSize && newH <= maxSize {
+					card.Y = swy
+					card.Height = newH
+				}
+			case 1: // TR
+				newW := swx - card.X
+				diffY := card.Y - swy
+				newH := card.Height + diffY
+				if newW >= minSize && newW <= maxSize {
+					card.Width = newW
+				}
+				if newH >= minSize && newH <= maxSize {
+					card.Y = swy
+					card.Height = newH
+				}
+			case 2: // BL
+				diffX := card.X - swx
+				newW := card.Width + diffX
+				newH := swy - card.Y
+				if newW >= minSize && newW <= maxSize {
+					card.X = swx
+					card.Width = newW
+				}
+				if newH >= minSize && newH <= maxSize {
+					card.Height = newH
+				}
+			case 3: // BR
+				newW := swx - card.X
+				newH := swy - card.Y
+				if newW >= minSize && newW <= maxSize {
+					card.Width = newW
+				}
+				if newH >= minSize && newH <= maxSize {
+					card.Height = newH
+				}
+			}
+		} else {
+			// Released
+			g.resizingCard.Width = math.Round(g.resizingCard.Width/50) * 50
+			g.resizingCard.Height = math.Round(g.resizingCard.Height/50) * 50
+			g.resizingCard = nil
 		}
 	} else if g.activeCard != nil {
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -92,8 +172,8 @@ func (g *Game) Update() error {
 			g.activeCard.Y = math.Round(newY/10) * 10
 		} else {
 			// Released - Snap to main grid
-			g.activeCard.X = math.Round(g.activeCard.X/100) * 100
-			g.activeCard.Y = math.Round(g.activeCard.Y/100) * 100
+			g.activeCard.X = math.Round(g.activeCard.X/50) * 50
+			g.activeCard.Y = math.Round(g.activeCard.Y/50) * 50
 
 			if g.activeCard.X < 0 {
 				g.activeCard.X = 0
@@ -109,7 +189,7 @@ func (g *Game) Update() error {
 
 	// --- Panning ---
 	isPanButtonHeld := ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) ||
-		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.activeCard == nil)
+		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.activeCard == nil && g.resizingCard == nil)
 
 	if !g.isPanning {
 		if isPanButtonHeld {
@@ -166,6 +246,25 @@ func (g *Game) getCardAt(wx, wy float64) *Card {
 	return nil
 }
 
+func (g *Game) getCornerAt(card *Card, wx, wy float64) int {
+	threshold := 15.0 // world units
+	corners := [][2]float64{
+		{card.X, card.Y},
+		{card.X + card.Width, card.Y},
+		{card.X, card.Y + card.Height},
+		{card.X + card.Width, card.Y + card.Height},
+	}
+
+	for i, c := range corners {
+		dx := wx - c[0]
+		dy := wy - c[1]
+		if math.Sqrt(dx*dx+dy*dy) < threshold/g.camera.Zoom {
+			return i
+		}
+	}
+	return -1
+}
+
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{30, 30, 35, 255})
 
@@ -214,6 +313,33 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				float32(screenW)+2*(borderOffset+borderThickness/2),
 				float32(screenH)+2*(borderOffset+borderThickness/2),
 				borderThickness, borderColor, false)
+		}
+
+		// Draw Corner Handle if hovering or resizing
+		resizingThis := (card == g.resizingCard)
+		hCorner := g.getCornerAt(card, wx, wy)
+		if (card == hoveredCard && hCorner != -1) || resizingThis {
+			cIdx := hCorner
+			if resizingThis {
+				cIdx = g.resizingCorner
+			}
+
+			var cx, cy float64
+			switch cIdx {
+			case 0:
+				cx, cy = card.X, card.Y
+			case 1:
+				cx, cy = card.X+card.Width, card.Y
+			case 2:
+				cx, cy = card.X, card.Y+card.Height
+			case 3:
+				cx, cy = card.X+card.Width, card.Y+card.Height
+			}
+
+			scx, scy := g.worldToScreen(cx, cy, cw, ch)
+			radius := float32(6 * g.camera.Zoom)
+			vector.DrawFilledCircle(screen, float32(scx), float32(scy), radius, color.RGBA{255, 255, 255, 200}, false)
+			vector.StrokeCircle(screen, float32(scx), float32(scy), radius, 2, color.RGBA{0, 120, 255, 255}, false)
 		}
 
 		// Title
