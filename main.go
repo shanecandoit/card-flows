@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -35,6 +36,12 @@ type Game struct {
 	isPanning  bool
 	lastMouseX int
 	lastMouseY int
+
+	// Input state for card dragging
+	activeCard  *Card
+	dragOffsetX float64
+	dragOffsetY float64
+	isHot       bool // True for the first frame a card is clicked
 }
 
 func NewGame() *Game {
@@ -62,10 +69,47 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// --- Panning ---
 	mx, my := ebiten.CursorPosition()
+	wx, wy := g.screenToWorld(float64(mx), float64(my))
+
+	// --- Card Dragging Logic ---
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if card := g.getCardAt(wx, wy); card != nil {
+			g.activeCard = card
+			g.dragOffsetX = wx - card.X
+			g.dragOffsetY = wy - card.Y
+			g.isHot = true
+		}
+	} else if g.activeCard != nil {
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			g.isHot = false
+			// Move card
+			newX := wx - g.dragOffsetX
+			newY := wy - g.dragOffsetY
+
+			// Small grid snap for movement
+			g.activeCard.X = math.Round(newX/10) * 10
+			g.activeCard.Y = math.Round(newY/10) * 10
+		} else {
+			// Released - Snap to main grid
+			g.activeCard.X = math.Round(g.activeCard.X/100) * 100
+			g.activeCard.Y = math.Round(g.activeCard.Y/100) * 100
+
+			if g.activeCard.X < 0 {
+				g.activeCard.X = 0
+			}
+			if g.activeCard.Y < 0 {
+				g.activeCard.Y = 0
+			}
+
+			g.activeCard = nil
+			g.isHot = false
+		}
+	}
+
+	// --- Panning ---
 	isPanButtonHeld := ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) ||
-		ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.activeCard == nil)
 
 	if !g.isPanning {
 		if isPanButtonHeld {
@@ -76,7 +120,6 @@ func (g *Game) Update() error {
 				if ebiten.IsKeyPressed(ebiten.KeySpace) {
 					shouldStartPan = true
 				} else {
-					wx, wy := g.screenToWorld(float64(mx), float64(my))
 					if g.getCardAt(wx, wy) == nil {
 						shouldStartPan = true
 					}
@@ -96,10 +139,6 @@ func (g *Game) Update() error {
 			g.camera.X -= dx / g.camera.Zoom
 			g.camera.Y -= dy / g.camera.Zoom
 
-			// Apply Canvas Limits (Top and Left limit)
-			// We clamp so we can't pan too far into the negative space.
-			// The user wants a top/left limit. Let's say camera can't go
-			// beyond showing some margin of the origin.
 			if g.camera.X < -200 {
 				g.camera.X = -200
 			}
@@ -135,34 +174,68 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	g.drawGrid(screen, cw, ch)
 
+	mx, my := ebiten.CursorPosition()
+	wx, wy := g.screenToWorld(float64(mx), float64(my))
+	hoveredCard := g.getCardAt(wx, wy)
+
 	for _, card := range g.cards {
 		screenX, screenY := g.worldToScreen(card.X, card.Y, cw, ch)
 		screenW := card.Width * g.camera.Zoom
 		screenH := card.Height * g.camera.Zoom
 
+		// Shadow
 		vector.DrawFilledRect(screen, float32(screenX+5*g.camera.Zoom), float32(screenY+5*g.camera.Zoom), float32(screenW), float32(screenH), color.RGBA{0, 0, 0, 100}, false)
+
+		// Body
 		vector.DrawFilledRect(screen, float32(screenX), float32(screenY), float32(screenW), float32(screenH), card.Color, false)
 
+		// Border Logic
+		borderColor := color.RGBA{0, 0, 0, 0}
+		showBorder := false
+
+		if card == g.activeCard {
+			showBorder = true
+			if g.isHot {
+				borderColor = color.RGBA{255, 140, 0, 255} // Orange
+			} else {
+				borderColor = color.RGBA{50, 205, 50, 255} // Green
+			}
+		} else if card == hoveredCard && g.activeCard == nil {
+			showBorder = true
+			borderColor = color.RGBA{0, 120, 255, 255} // Blue
+		}
+
+		if showBorder {
+			borderThickness := float32(3 * g.camera.Zoom)
+			borderOffset := float32(2 * g.camera.Zoom)
+			vector.StrokeRect(screen,
+				float32(screenX)-borderOffset-borderThickness/2,
+				float32(screenY)-borderOffset-borderThickness/2,
+				float32(screenW)+2*(borderOffset+borderThickness/2),
+				float32(screenH)+2*(borderOffset+borderThickness/2),
+				borderThickness, borderColor, false)
+		}
+
+		// Title
 		msg := fmt.Sprintf("%s\n(%.0f, %.0f)", card.Title, card.X, card.Y)
 		ebitenutil.DebugPrintAt(screen, msg, int(screenX+5), int(screenY+5))
 	}
 
-	mx, my := ebiten.CursorPosition()
-	wx, wy := g.screenToWorld(float64(mx), float64(my))
 	hoverStatus := "None"
-	if c := g.getCardAt(wx, wy); c != nil {
-		hoverStatus = c.Title
+	if hoveredCard != nil {
+		hoverStatus = hoveredCard.Title
 	}
 
-	ebitenutil.DebugPrint(screen, fmt.Sprintf(
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf(
 		"Camera: (%.1f, %.1f) Zoom: %.2f\n"+
 			"Mouse World: (%.1f, %.1f)\n"+
 			"Hovering: %s\n"+
-			"Limit: x>=0, y>=0 (Grid)",
+			"Drag: Left Click to move cards\n"+
+			"Pan: Left Drag (Empty Space) or Middle Drag",
 		g.camera.X, g.camera.Y, g.camera.Zoom,
 		wx, wy,
 		hoverStatus,
-	))
+	), 10, 10)
 }
 
 func (g *Game) drawGrid(screen *ebiten.Image, cw, ch float64) {
@@ -178,25 +251,27 @@ func (g *Game) drawGrid(screen *ebiten.Image, cw, ch float64) {
 		startWy = 0
 	}
 
+	gridGrey := color.RGBA{32, 32, 32, 10}
+
 	// Vertical lines (wx >= 0)
-	for wx := startWx; wx < right; wx += 100.0 {
+	for wx := startWx; wx < right; wx += 50.0 {
 		sx, _ := g.worldToScreen(wx, 0, cw, ch)
-		// Only draw from the top edge of the grid (y=0)
 		_, syStart := g.worldToScreen(0, 0, cw, ch)
-		vector.StrokeLine(screen, float32(sx), float32(math.Max(0, syStart)), float32(sx), float32(g.screenHeight), 1, color.RGBA{255, 255, 255, 20}, false)
+		vector.StrokeLine(screen, float32(sx),
+			float32(math.Max(0, syStart)), float32(sx),
+			float32(g.screenHeight), 1, gridGrey, false)
 	}
 
 	// Horizontal lines (wy >= 0)
-	for wy := startWy; wy < bottom; wy += 100.0 {
+	for wy := startWy; wy < bottom; wy += 50.0 {
 		_, sy := g.worldToScreen(0, wy, cw, ch)
-		// Only draw from the left edge of the grid (x=0)
 		sxStart, _ := g.worldToScreen(0, 0, cw, ch)
-		vector.StrokeLine(screen, float32(math.Max(0, sxStart)), float32(sy), float32(g.screenWidth), float32(sy), 1, color.RGBA{255, 255, 255, 20}, false)
+		vector.StrokeLine(screen, float32(math.Max(0, sxStart)),
+			float32(sy), float32(g.screenWidth), float32(sy), 1, gridGrey, false)
 	}
 
 	originX, originY := g.worldToScreen(0, 0, cw, ch)
 
-	// Draw "Void" overlays for negative space
 	if originX > 0 {
 		vector.DrawFilledRect(screen, 0, 0, float32(originX), float32(g.screenHeight), color.RGBA{20, 20, 25, 255}, false)
 	}
@@ -204,7 +279,6 @@ func (g *Game) drawGrid(screen *ebiten.Image, cw, ch float64) {
 		vector.DrawFilledRect(screen, float32(math.Max(0, originX)), 0, float32(g.screenWidth), float32(originY), color.RGBA{20, 20, 25, 255}, false)
 	}
 
-	// Origin Marker
 	vector.StrokeLine(screen, float32(originX-15), float32(originY), float32(originX+15), float32(originY), 2, color.RGBA{255, 100, 100, 150}, false)
 	vector.StrokeLine(screen, float32(originX), float32(originY-15), float32(originX), float32(originY+15), 2, color.RGBA{255, 100, 100, 150}, false)
 }
