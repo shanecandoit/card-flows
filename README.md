@@ -25,3 +25,7 @@ go run main.go
 
 - [Features](features.md): Overview of the engine, architecture, and workflow logic.
 - [Ideas & Design Vision](ideas.md): Philosophy, spatial logic, and future roadmap.
+
+## Screenshot
+
+![Screenshot](screenshot.png)

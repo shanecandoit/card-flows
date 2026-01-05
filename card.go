@@ -5,12 +5,20 @@ import (
 	"math"
 )
 
+// Port represents an input or output on a block
+type Port struct {
+	Name string
+	Type string
+}
+
 // Card represents a node on the canvas
 type Card struct {
 	X, Y          float64
 	Width, Height float64
 	Color         color.Color
 	Title         string
+	Inputs        []Port
+	Outputs       []Port
 }
 
 func (c *Card) GetCornerAt(wx, wy, zoom float64) int {

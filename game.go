@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"image/png"
+	"log"
 	"math"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -31,6 +34,8 @@ type Game struct {
 	// Input state for resizing
 	resizingCard   *Card
 	resizingCorner int // 0: TL, 1: TR, 2: BL, 3: BR
+
+	screenshotRequested bool
 }
 
 func NewGame() *Game {
@@ -44,10 +49,33 @@ func NewGame() *Game {
 	g.cards = append(g.cards, &Card{X: 300, Y: 200, Width: 180, Height: 100, Color: color.RGBA{255, 105, 180, 255}, Title: "Transformation"})
 	g.cards = append(g.cards, &Card{X: 100, Y: 400, Width: 220, Height: 140, Color: color.RGBA{60, 179, 113, 255}, Title: "Output Plot"})
 
+	// Add String:find_replace block
+	g.cards = append(g.cards, &Card{
+		Title:  "String:find_replace",
+		X:      500,
+		Y:      50,
+		Width:  250,
+		Height: 150,
+		Color:  color.RGBA{100, 100, 250, 255},
+		Inputs: []Port{
+			{Name: "input", Type: "string"},
+			{Name: "find", Type: "string"},
+			{Name: "replace", Type: "string"},
+		},
+		Outputs: []Port{
+			{Name: "result", Type: "string"},
+		},
+	})
+
 	return g
 }
 
 func (g *Game) Update() error {
+	// --- Screenshot ---
+	if inpututil.IsKeyJustPressed(ebiten.KeyF1) {
+		g.screenshotRequested = true
+	}
+
 	// --- Zooming ---
 	_, dy := ebiten.Wheel()
 	if dy != 0 {
@@ -311,6 +339,65 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Title
 		msg := fmt.Sprintf("%s\n(%.0f, %.0f)", card.Title, card.X, card.Y)
 		ebitenutil.DebugPrintAt(screen, msg, int(screenX+5), int(screenY+5))
+
+		// --- Dividers ---
+		dividerColor := color.RGBA{0, 0, 0, 50}
+		// Header divider
+		headerHeight := 50.0
+		hy := card.Y + headerHeight
+		shx1, shy := g.worldToScreen(card.X, hy, cw, ch)
+		shx2, _ := g.worldToScreen(card.X+card.Width, hy, cw, ch)
+		vector.StrokeLine(screen, float32(shx1), float32(shy), float32(shx2), float32(shy), 1, dividerColor, false)
+
+		// Footer divider (only if there are outputs)
+		footerHeight := 0.0
+		if len(card.Outputs) > 0 {
+			footerHeight = 30.0
+			fy := card.Y + card.Height - footerHeight
+			sfx1, sfy := g.worldToScreen(card.X, fy, cw, ch)
+			sfx2, _ := g.worldToScreen(card.X+card.Width, fy, cw, ch)
+			vector.StrokeLine(screen, float32(sfx1), float32(sfy), float32(sfx2), float32(sfy), 1, dividerColor, false)
+		}
+
+		// --- Ports Rendering ---
+		portSize := 10.0 * g.camera.Zoom
+
+		// Inputs (Left edge)
+		if len(card.Inputs) > 0 {
+			usableHeight := card.Height - headerHeight - footerHeight
+			ySpacing := usableHeight / float64(len(card.Inputs)+1)
+			for i, port := range card.Inputs {
+				py := card.Y + headerHeight + ySpacing*float64(i+1)
+				spx, spy := g.worldToScreen(card.X, py, cw, ch)
+
+				// Grey Square
+				vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), color.RGBA{150, 150, 150, 255}, false)
+				// Black hole
+				vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*g.camera.Zoom), color.RGBA{0, 0, 0, 255}, false)
+
+				// Label
+				label := fmt.Sprintf("%s:%s", port.Name, port.Type)
+				ebitenutil.DebugPrintAt(screen, label, int(spx+portSize), int(spy-8*g.camera.Zoom))
+			}
+		}
+
+		// Outputs (Bottom edge)
+		if len(card.Outputs) > 0 {
+			xSpacing := card.Width / float64(len(card.Outputs)+1)
+			for i, port := range card.Outputs {
+				px := card.X + xSpacing*float64(i+1)
+				spx, spy := g.worldToScreen(px, card.Y+card.Height, cw, ch)
+
+				// Grey Square
+				vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), color.RGBA{150, 150, 150, 255}, false)
+				// Black hole
+				vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*g.camera.Zoom), color.RGBA{0, 0, 0, 255}, false)
+
+				// Label
+				label := fmt.Sprintf("%s:%s", port.Name, port.Type)
+				ebitenutil.DebugPrintAt(screen, label, int(spx-20*g.camera.Zoom), int(spy-20*g.camera.Zoom))
+			}
+		}
 	}
 
 	hoverStatus := "None"
@@ -328,6 +415,22 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		wx, wy,
 		hoverStatus,
 	), 10, 10)
+
+	// --- Save Screenshot ---
+	if g.screenshotRequested {
+		g.screenshotRequested = false
+		f, err := os.Create("screenshot.png")
+		if err != nil {
+			log.Println("screenshot error:", err)
+		} else {
+			defer f.Close()
+			if err := png.Encode(f, screen); err != nil {
+				log.Println("screenshot error:", err)
+			} else {
+				log.Println("Screenshot saved as screenshot.png")
+			}
+		}
+	}
 }
 
 func (g *Game) drawGrid(screen *ebiten.Image, cw, ch float64) {
