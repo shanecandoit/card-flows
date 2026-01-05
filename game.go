@@ -78,19 +78,48 @@ func (g *Game) Update() error {
 
 	// --- Zooming ---
 	_, dy := ebiten.Wheel()
+
+	// Keyboard Zooming
+	if ebiten.IsKeyPressed(ebiten.KeyEqual) || ebiten.IsKeyPressed(ebiten.KeyKPAdd) {
+		dy += 0.1
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyMinus) || ebiten.IsKeyPressed(ebiten.KeyKPSubtract) {
+		dy -= 0.1
+	}
+
 	if dy != 0 {
 		zoomSpeed := 0.1
 		newZoom := g.camera.Zoom * math.Pow(1+zoomSpeed, dy)
-		if newZoom > 0.1 && newZoom < 5.0 {
+		if newZoom > 0.1 && newZoom < 10.0 {
 			g.camera.Zoom = newZoom
 		}
 	}
 
 	mx, my := ebiten.CursorPosition()
+
+	// UI Buttons Hit Detection (Top Right)
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		// Plus Button
+		if mx >= g.screenWidth-40 && mx <= g.screenWidth-10 && my >= 10 && my <= 40 {
+			newZoom := g.camera.Zoom * 1.1
+			if newZoom < 10.0 {
+				g.camera.Zoom = newZoom
+			}
+		}
+		// Minus Button
+		if mx >= g.screenWidth-80 && mx <= g.screenWidth-50 && my >= 10 && my <= 40 {
+			newZoom := g.camera.Zoom / 1.1
+			if newZoom > 0.1 {
+				g.camera.Zoom = newZoom
+			}
+		}
+	}
+
 	wx, wy := g.screenToWorld(float64(mx), float64(my))
 
 	// --- Card Resizing Logic ---
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) {
+	overUI := mx >= g.screenWidth-80 && mx <= g.screenWidth-10 && my >= 10 && my <= 40
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) && !overUI {
 		// Check for corners first
 		for i := len(g.cards) - 1; i >= 0; i-- {
 			card := g.cards[i]
@@ -202,7 +231,7 @@ func (g *Game) Update() error {
 
 	// --- Panning ---
 	isPanButtonHeld := ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) ||
-		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.activeCard == nil && g.resizingCard == nil)
+		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.activeCard == nil && g.resizingCard == nil && !overUI)
 
 	if !g.isPanning {
 		if isPanButtonHeld {
@@ -415,6 +444,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		wx, wy,
 		hoverStatus,
 	), 10, 10)
+
+	// --- UI Buttons (Top Right) ---
+	buttonColor := color.RGBA{60, 60, 70, 200}
+
+	// Plus Button
+	vector.DrawFilledRect(screen, float32(g.screenWidth-40), 10, 30, 30, buttonColor, false)
+	ebitenutil.DebugPrintAt(screen, "+", g.screenWidth-30, 18)
+
+	// Minus Button
+	vector.DrawFilledRect(screen, float32(g.screenWidth-80), 10, 30, 30, buttonColor, false)
+	ebitenutil.DebugPrintAt(screen, "-", g.screenWidth-70, 18)
 
 	// --- Save Screenshot ---
 	if g.screenshotRequested {
