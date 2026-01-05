@@ -10,7 +10,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -20,20 +19,9 @@ type Game struct {
 	screenWidth  int
 	screenHeight int
 
-	// Input state for panning
-	isPanning  bool
-	lastMouseX int
-	lastMouseY int
-
-	// Input state for card dragging
-	activeCard  *Card
-	dragOffsetX float64
-	dragOffsetY float64
-	isHot       bool // True for the first frame a card is clicked
-
-	// Input state for resizing
-	resizingCard   *Card
-	resizingCorner int // 0: TL, 1: TR, 2: BL, 3: BR
+	// Sub-systems
+	input *InputSystem
+	ui    *UISystem
 
 	screenshotRequested bool
 }
@@ -43,6 +31,9 @@ func NewGame() *Game {
 		camera: Camera{X: 400, Y: 200, Zoom: 1.0},
 		cards:  []*Card{},
 	}
+
+	g.input = NewInputSystem(g)
+	g.ui = NewUISystem(g)
 
 	// Add some dummy cards (Constrained to x >= 0, y >= 0)
 	g.cards = append(g.cards, &Card{X: 50, Y: 50, Width: 200, Height: 120, Color: color.RGBA{100, 149, 237, 255}, Title: "Input Data"})
@@ -71,209 +62,9 @@ func NewGame() *Game {
 }
 
 func (g *Game) Update() error {
-	// --- Screenshot ---
-	if inpututil.IsKeyJustPressed(ebiten.KeyF1) {
-		g.screenshotRequested = true
-	}
-
-	// --- Zooming ---
-	_, dy := ebiten.Wheel()
-
-	// Keyboard Zooming
-	if ebiten.IsKeyPressed(ebiten.KeyEqual) || ebiten.IsKeyPressed(ebiten.KeyKPAdd) {
-		dy += 0.1
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyMinus) || ebiten.IsKeyPressed(ebiten.KeyKPSubtract) {
-		dy -= 0.1
-	}
-
-	if dy != 0 {
-		zoomSpeed := 0.1
-		newZoom := g.camera.Zoom * math.Pow(1+zoomSpeed, dy)
-		if newZoom > 0.1 && newZoom < 10.0 {
-			g.camera.Zoom = newZoom
-		}
-	}
-
-	mx, my := ebiten.CursorPosition()
-
-	// UI Buttons Hit Detection (Top Right)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		// Plus Button
-		if mx >= g.screenWidth-40 && mx <= g.screenWidth-10 && my >= 10 && my <= 40 {
-			newZoom := g.camera.Zoom * 1.1
-			if newZoom < 10.0 {
-				g.camera.Zoom = newZoom
-			}
-		}
-		// Minus Button
-		if mx >= g.screenWidth-80 && mx <= g.screenWidth-50 && my >= 10 && my <= 40 {
-			newZoom := g.camera.Zoom / 1.1
-			if newZoom > 0.1 {
-				g.camera.Zoom = newZoom
-			}
-		}
-	}
-
-	wx, wy := g.screenToWorld(float64(mx), float64(my))
-
-	// --- Card Resizing Logic ---
-	overUI := mx >= g.screenWidth-80 && mx <= g.screenWidth-10 && my >= 10 && my <= 40
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) && !overUI {
-		// Check for corners first
-		for i := len(g.cards) - 1; i >= 0; i-- {
-			card := g.cards[i]
-			corner := card.GetCornerAt(wx, wy, g.camera.Zoom)
-			if corner != -1 {
-				g.resizingCard = card
-				g.resizingCorner = corner
-				break
-			}
-		}
-
-		if g.resizingCard == nil {
-			// If not resizing, try dragging
-			if card := g.getCardAt(wx, wy); card != nil {
-				g.activeCard = card
-				g.dragOffsetX = wx - card.X
-				g.dragOffsetY = wy - card.Y
-				g.isHot = true
-			}
-		}
-	} else if g.resizingCard != nil {
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			card := g.resizingCard
-			minSize := 50.0
-			maxSize := 500.0
-
-			// Snap target coordinates to 50px grid
-			swx := math.Round(wx/50) * 50
-			swy := math.Round(wy/50) * 50
-
-			switch g.resizingCorner {
-			case 0: // TL
-				diffX := card.X - swx
-				diffY := card.Y - swy
-				newW := card.Width + diffX
-				newH := card.Height + diffY
-				if newW >= minSize && newW <= maxSize {
-					card.X = swx
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Y = swy
-					card.Height = newH
-				}
-			case 1: // TR
-				newW := swx - card.X
-				diffY := card.Y - swy
-				newH := card.Height + diffY
-				if newW >= minSize && newW <= maxSize {
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Y = swy
-					card.Height = newH
-				}
-			case 2: // BL
-				diffX := card.X - swx
-				newW := card.Width + diffX
-				newH := swy - card.Y
-				if newW >= minSize && newW <= maxSize {
-					card.X = swx
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Height = newH
-				}
-			case 3: // BR
-				newW := swx - card.X
-				newH := swy - card.Y
-				if newW >= minSize && newW <= maxSize {
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Height = newH
-				}
-			}
-		} else {
-			// Released
-			g.resizingCard.Width = math.Round(g.resizingCard.Width/50) * 50
-			g.resizingCard.Height = math.Round(g.resizingCard.Height/50) * 50
-			g.resizingCard = nil
-		}
-	} else if g.activeCard != nil {
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			g.isHot = false
-			// Move card
-			newX := wx - g.dragOffsetX
-			newY := wy - g.dragOffsetY
-
-			// Small grid snap for movement
-			g.activeCard.X = math.Round(newX/10) * 10
-			g.activeCard.Y = math.Round(newY/10) * 10
-		} else {
-			// Released - Snap to main grid
-			g.activeCard.X = math.Round(g.activeCard.X/50) * 50
-			g.activeCard.Y = math.Round(g.activeCard.Y/50) * 50
-
-			if g.activeCard.X < 0 {
-				g.activeCard.X = 0
-			}
-			if g.activeCard.Y < 0 {
-				g.activeCard.Y = 0
-			}
-
-			g.activeCard = nil
-			g.isHot = false
-		}
-	}
-
-	// --- Panning ---
-	isPanButtonHeld := ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) ||
-		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.activeCard == nil && g.resizingCard == nil && !overUI)
-
-	if !g.isPanning {
-		if isPanButtonHeld {
-			shouldStartPan := false
-			if ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) {
-				shouldStartPan = true
-			} else if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-				if ebiten.IsKeyPressed(ebiten.KeySpace) {
-					shouldStartPan = true
-				} else {
-					if g.getCardAt(wx, wy) == nil {
-						shouldStartPan = true
-					}
-				}
-			}
-
-			if shouldStartPan {
-				g.isPanning = true
-				g.lastMouseX, g.lastMouseY = mx, my
-			}
-		}
-	} else {
-		if isPanButtonHeld {
-			dx := float64(mx - g.lastMouseX)
-			dy := float64(my - g.lastMouseY)
-
-			g.camera.X -= dx / g.camera.Zoom
-			g.camera.Y -= dy / g.camera.Zoom
-
-			if g.camera.X < -200 {
-				g.camera.X = -200
-			}
-			if g.camera.Y < -200 {
-				g.camera.Y = -200
-			}
-
-			g.lastMouseX, g.lastMouseY = mx, my
-		} else {
-			g.isPanning = false
-		}
-	}
-
+	// Delegate to sub-systems
+	g.input.Update()
+	g.ui.Update()
 	return nil
 }
 
@@ -315,14 +106,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		borderColor := color.RGBA{0, 0, 0, 0}
 		showBorder := false
 
-		if card == g.activeCard {
+		if card == g.input.activeCard {
 			showBorder = true
-			if g.isHot {
+			if g.input.isHot {
 				borderColor = color.RGBA{255, 140, 0, 255} // Orange
 			} else {
 				borderColor = color.RGBA{50, 205, 50, 255} // Green
 			}
-		} else if card == hoveredCard && g.activeCard == nil {
+		} else if card == hoveredCard && g.input.activeCard == nil {
 			showBorder = true
 			borderColor = color.RGBA{0, 120, 255, 255} // Blue
 		}
@@ -339,12 +130,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 		// Draw Corner Handle if hovering or resizing
-		resizingThis := (card == g.resizingCard)
+		resizingThis := (card == g.input.resizingCard)
 		hCorner := card.GetCornerAt(wx, wy, g.camera.Zoom)
 		if (card == hoveredCard && hCorner != -1) || resizingThis {
 			cIdx := hCorner
 			if resizingThis {
-				cIdx = g.resizingCorner
+				cIdx = g.input.resizingCorner
 			}
 
 			var cx, cy float64
@@ -445,16 +236,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		hoverStatus,
 	), 10, 10)
 
-	// --- UI Buttons (Top Right) ---
-	buttonColor := color.RGBA{60, 60, 70, 200}
-
-	// Plus Button
-	vector.DrawFilledRect(screen, float32(g.screenWidth-40), 10, 30, 30, buttonColor, false)
-	ebitenutil.DebugPrintAt(screen, "+", g.screenWidth-30, 18)
-
-	// Minus Button
-	vector.DrawFilledRect(screen, float32(g.screenWidth-80), 10, 30, 30, buttonColor, false)
-	ebitenutil.DebugPrintAt(screen, "-", g.screenWidth-70, 18)
+	g.ui.Draw(screen)
 
 	// --- Save Screenshot ---
 	if g.screenshotRequested {
