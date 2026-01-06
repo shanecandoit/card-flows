@@ -9,8 +9,8 @@ import (
 
 // drawBackgroundGrid renders the infinite coordinate grid
 func (g *Game) drawBackgroundGrid(screen *ebiten.Image, cw, ch float64) {
-	left, top := g.screenToWorld(0, 0)
-	right, bottom := g.screenToWorld(float64(g.screenWidth), float64(g.screenHeight))
+	left, top := g.camera.ScreenToWorld(0, 0, cw, ch)
+	right, bottom := g.camera.ScreenToWorld(float64(g.screenWidth), float64(g.screenHeight), cw, ch)
 
 	startWx := math.Floor(left/GridSizeLarge) * GridSizeLarge
 	if startWx < 0 {
@@ -25,8 +25,8 @@ func (g *Game) drawBackgroundGrid(screen *ebiten.Image, cw, ch float64) {
 
 	// Vertical lines (wx >= 0)
 	for wx := startWx; wx < right; wx += GridSizeSmall {
-		sx, _ := g.worldToScreen(wx, 0, cw, ch)
-		_, syStart := g.worldToScreen(0, 0, cw, ch)
+		sx, _ := g.camera.WorldToScreen(wx, 0, cw, ch)
+		_, syStart := g.camera.WorldToScreen(0, 0, cw, ch)
 		vector.StrokeLine(screen, float32(sx),
 			float32(math.Max(0, syStart)), float32(sx),
 			float32(g.screenHeight), 1, gridGrey, false)
@@ -34,13 +34,13 @@ func (g *Game) drawBackgroundGrid(screen *ebiten.Image, cw, ch float64) {
 
 	// Horizontal lines (wy >= 0)
 	for wy := startWy; wy < bottom; wy += GridSizeSmall {
-		_, sy := g.worldToScreen(0, wy, cw, ch)
-		sxStart, _ := g.worldToScreen(0, 0, cw, ch)
+		_, sy := g.camera.WorldToScreen(0, wy, cw, ch)
+		sxStart, _ := g.camera.WorldToScreen(0, 0, cw, ch)
 		vector.StrokeLine(screen, float32(math.Max(0, sxStart)),
 			float32(sy), float32(g.screenWidth), float32(sy), 1, gridGrey, false)
 	}
 
-	originX, originY := g.worldToScreen(0, 0, cw, ch)
+	originX, originY := g.camera.WorldToScreen(0, 0, cw, ch)
 
 	if originX > 0 {
 		vector.DrawFilledRect(screen, 0, 0, float32(originX), float32(g.screenHeight), ColorGridBlocked, false)

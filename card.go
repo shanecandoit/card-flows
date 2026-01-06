@@ -48,12 +48,12 @@ func (g *Game) AddTextCard(x, y float64) *Card {
 }
 
 func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool) {
-	sx, sy := g.worldToScreen(c.X, c.Y, cw, ch)
+	sx, sy := g.camera.WorldToScreen(c.X, c.Y, cw, ch)
 	sw := c.Width * g.camera.Zoom
 	sh := c.Height * g.camera.Zoom
 
 	mx, my := ebiten.CursorPosition()
-	wx, wy := g.screenToWorld(float64(mx), float64(my))
+	wx, wy := g.camera.ScreenToWorld(float64(mx), float64(my), cw, ch)
 
 	c.drawBody(screen, g, sx, sy, sw, sh)
 	c.drawSelectionBorder(screen, g, hovered, sx, sy, sw, sh)
@@ -129,7 +129,7 @@ func (c *Card) drawResizeHandles(screen *ebiten.Image, g *Game, hovered bool, wx
 			cx, cy = c.X+c.Width, c.Y+c.Height
 		}
 
-		scx, scy := g.worldToScreen(cx, cy, cw, ch)
+		scx, scy := g.camera.WorldToScreen(cx, cy, cw, ch)
 		radius := float32(CornerRadius * g.camera.Zoom)
 		vector.DrawFilledCircle(screen, float32(scx), float32(scy), radius, ColorCornerHandle, false)
 		vector.StrokeCircle(screen, float32(scx), float32(scy), radius, 2, ColorCardHover, false)
@@ -192,15 +192,15 @@ func (c *Card) drawDividers(screen *ebiten.Image, g *Game, sx, sy, sw, sh, heade
 	color := ColorDivider
 	// Header divider
 	hy := c.Y + headerHeight
-	shx1, shy := g.worldToScreen(c.X, hy, cw, ch)
-	shx2, _ := g.worldToScreen(c.X+c.Width, hy, cw, ch)
+	shx1, shy := g.camera.WorldToScreen(c.X, hy, cw, ch)
+	shx2, _ := g.camera.WorldToScreen(c.X+c.Width, hy, cw, ch)
 	vector.StrokeLine(screen, float32(shx1), float32(shy), float32(shx2), float32(shy), 1, color, false)
 
 	// Footer divider
 	if footerHeight > 0 {
 		fy := c.Y + c.Height - footerHeight
-		sfx1, sfy := g.worldToScreen(c.X, fy, cw, ch)
-		sfx2, _ := g.worldToScreen(c.X+c.Width, fy, cw, ch)
+		sfx1, sfy := g.camera.WorldToScreen(c.X, fy, cw, ch)
+		sfx2, _ := g.camera.WorldToScreen(c.X+c.Width, fy, cw, ch)
 		vector.StrokeLine(screen, float32(sfx1), float32(sfy), float32(sfx2), float32(sfy), 1, color, false)
 	}
 }
@@ -215,7 +215,7 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 		ySpacing := usableHeight / float64(len(c.Inputs)+1)
 		for i, port := range c.Inputs {
 			py := c.Y + headerHeight + ySpacing*float64(i+1)
-			spx, spy := g.worldToScreen(c.X, py, cw, ch)
+			spx, spy := g.camera.WorldToScreen(c.X, py, cw, ch)
 			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), ColorPortBody, false)
 			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), ColorPortDot, false)
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
@@ -228,7 +228,7 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 		xSpacing := c.Width / float64(len(c.Outputs)+1)
 		for i, port := range c.Outputs {
 			px := c.X + xSpacing*float64(i+1)
-			spx, spy := g.worldToScreen(px, c.Y+c.Height, cw, ch)
+			spx, spy := g.camera.WorldToScreen(px, c.Y+c.Height, cw, ch)
 			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), ColorPortBody, false)
 			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), ColorPortDot, false)
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)

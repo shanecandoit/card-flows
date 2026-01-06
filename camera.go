@@ -6,17 +6,14 @@ type Camera struct {
 	Zoom float64
 }
 
-func (g *Game) worldToScreen(wx, wy, cw, ch float64) (float64, float64) {
-	sx := (wx-g.camera.X)*g.camera.Zoom + cw
-	sy := (wy-g.camera.Y)*g.camera.Zoom + ch
+func (c *Camera) WorldToScreen(wx, wy, cw, ch float64) (float64, float64) {
+	sx := (wx-c.X)*c.Zoom + cw
+	sy := (wy-c.Y)*c.Zoom + ch
 	return sx, sy
 }
 
-func (g *Game) screenToWorld(sx, sy float64) (float64, float64) {
-	cw := float64(g.screenWidth) / 2
-	ch := float64(g.screenHeight) / 2
-
-	wx := (sx-cw)/g.camera.Zoom + g.camera.X
-	wy := (sy-ch)/g.camera.Zoom + g.camera.Y
+func (c *Camera) ScreenToWorld(sx, sy, cw, ch float64) (float64, float64) {
+	wx := (sx-cw)/c.Zoom + c.X
+	wy := (sy-ch)/c.Zoom + c.Y
 	return wx, wy
 }
