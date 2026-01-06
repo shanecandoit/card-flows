@@ -63,7 +63,7 @@ func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool)
 	c.drawBody(screen, g, sx, sy, sw, sh)
 	c.drawSelectionBorder(screen, g, hovered, sx, sy, sw, sh)
 	c.drawResizeHandles(screen, g, hovered, wx, wy, cw, ch)
-	c.drawHeader(screen, g, sx, sy, sw, wx, wy)
+	c.drawHeader(screen, g, sx, sy, sw, wx, wy, hovered)
 
 	headerHeight := HeaderHeight
 	footerHeight := 0.0
@@ -141,10 +141,15 @@ func (c *Card) drawResizeHandles(screen *ebiten.Image, g *Game, hovered bool, wx
 	}
 }
 
-func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx, wy float64) {
-	// Title
-	msg := fmt.Sprintf("%s\nID: %s\n(%.0f, %.0f)", c.Title, c.ID, c.X, c.Y)
-	ebitenutil.DebugPrintAt(screen, msg, int(sx+5), int(sy+5))
+func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx, wy float64, hovered bool) {
+	// Title - only show ID when hovered
+	var msg string
+	if hovered {
+		msg = fmt.Sprintf("%s\nID: %s\n(%.0f, %.0f)", c.Title, c.ID, c.X, c.Y)
+	} else {
+		msg = c.Title
+	}
+	ebitenutil.DebugPrintAt(screen, msg, int(sx+CardPaddingX*g.camera.Zoom), int(sy+CardPaddingY*g.camera.Zoom))
 
 	// Buttons
 	zoom := g.camera.Zoom
@@ -204,7 +209,10 @@ func (c *Card) drawContent(screen *ebiten.Image, g *Game, sx, sy, headerHeight f
 		textContent = c.Text
 	}
 
-	ebitenutil.DebugPrintAt(screen, textContent, int(sx+10), int(sy+headerHeight+10))
+	zoom := g.camera.Zoom
+	paddingX := CardPaddingX * zoom
+	paddingY := CardPaddingY * zoom
+	ebitenutil.DebugPrintAt(screen, textContent, int(sx+paddingX), int(sy+headerHeight+paddingY))
 }
 
 func (c *Card) drawDividers(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHeight, footerHeight float64, cw, ch float64) {

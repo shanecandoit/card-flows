@@ -31,6 +31,8 @@ const (
 	BorderOffset      = 2.0
 	CornerRadius      = 6.0
 	CornerThreshold   = 15.0
+	CardPaddingX      = 10.0
+	CardPaddingY      = 8.0
 
 	CardActionButtonWidth  = 30.0
 	CardActionButtonHeight = 20.0
