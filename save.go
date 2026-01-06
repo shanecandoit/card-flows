@@ -38,9 +38,17 @@ type CameraState struct {
 	Zoom float64 `yaml:"zoom"`
 }
 
+type ArrowState struct {
+	FromCardID string `yaml:"from_card_id"`
+	FromPort   string `yaml:"from_port"`
+	ToCardID   string `yaml:"to_card_id"`
+	ToPort     string `yaml:"to_port"`
+}
+
 type AppState struct {
-	Cards  []CardState `yaml:"cards"`
-	Camera CameraState `yaml:"camera"`
+	Cards  []CardState  `yaml:"cards"`
+	Arrows []ArrowState `yaml:"arrows"`
+	Camera CameraState  `yaml:"camera"`
 }
 
 func SaveState(g *Game, filename string) error {
@@ -78,6 +86,15 @@ func SaveState(g *Game, filename string) error {
 		state.Cards = append(state.Cards, cardState)
 	}
 
+	for _, arrow := range g.arrows {
+		state.Arrows = append(state.Arrows, ArrowState{
+			FromCardID: arrow.FromCardID,
+			FromPort:   arrow.FromPort,
+			ToCardID:   arrow.ToCardID,
+			ToPort:     arrow.ToPort,
+		})
+	}
+
 	f, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -109,6 +126,8 @@ func LoadState(g *Game, filename string) error {
 	g.camera.Zoom = state.Camera.Zoom
 
 	g.cards = nil
+	g.arrows = nil
+
 	for _, cs := range state.Cards {
 		id := cs.ID
 		if id == "" {
@@ -137,6 +156,21 @@ func LoadState(g *Game, filename string) error {
 		}
 
 		g.cards = append(g.cards, card)
+	}
+
+	// Load Arrows
+	// Note: If IDs changed during load (due to empty IDs), arrows will be broken.
+	// But since we now save IDs, this should be fine for new saves.
+	// For old saves without IDs, arrows were already broken.
+	for _, as := range state.Arrows {
+		arrow := &Arrow{
+			FromCardID: as.FromCardID,
+			FromPort:   as.FromPort,
+			ToCardID:   as.ToCardID,
+			ToPort:     as.ToPort,
+			Color:      ColorArrowDefault, // Use global default color
+		}
+		g.arrows = append(g.arrows, arrow)
 	}
 
 	return nil

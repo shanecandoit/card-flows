@@ -6,6 +6,8 @@ import (
 	"image/png"
 	"log"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -89,14 +91,31 @@ func (g *Game) DeleteCard(c *Card) {
 }
 
 func (g *Game) DuplicateCard(c *Card) {
+	newID := NewID()
+
+	// Determine base title (strip previous ID suffix or (Copy) if present)
+	// Simple heuristic: if it ends with ')', try to strip the last parenthesized group
+	baseTitle := c.Title
+	if matches := regexp.MustCompile(`^(.*)\s\([a-f0-9]+\)$`).FindStringSubmatch(c.Title); len(matches) > 1 {
+		baseTitle = matches[1]
+	} else {
+		// Also clean up old " (Copy)" style just in case
+		baseTitle = strings.ReplaceAll(baseTitle, " (Copy)", "")
+	}
+
+	shortID := newID
+	if len(newID) > 5 {
+		shortID = newID[:5]
+	}
+
 	newCard := &Card{
-		ID:     NewID(),
+		ID:     newID,
 		X:      c.X + DuplicateOffset,
 		Y:      c.Y + DuplicateOffset,
 		Width:  c.Width,
 		Height: c.Height,
 		Color:  c.Color,
-		Title:  c.Title + " (Copy)",
+		Title:  fmt.Sprintf("%s (%s)", baseTitle, shortID),
 		Text:   c.Text,
 	}
 	// Copy ports
