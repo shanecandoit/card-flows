@@ -160,18 +160,36 @@ func LoadState(g *Game, filename string) error {
 
 	// Load Arrows
 	// Note: If IDs changed during load (due to empty IDs), arrows will be broken.
-	// But since we now save IDs, this should be fine for new saves.
-	// For old saves without IDs, arrows were already broken.
+	// We filter out any arrows that point to non-existent cards to prevent "Miss Draw" errors.
+	validArrows := []*Arrow{}
 	for _, as := range state.Arrows {
-		arrow := &Arrow{
-			FromCardID: as.FromCardID,
-			FromPort:   as.FromPort,
-			ToCardID:   as.ToCardID,
-			ToPort:     as.ToPort,
-			Color:      ColorArrowDefault, // Use global default color
+		// Check validity
+		fromExists := false
+		toExists := false
+		for _, c := range g.cards {
+			if c.ID == as.FromCardID {
+				fromExists = true
+			}
+			if c.ID == as.ToCardID {
+				toExists = true
+			}
 		}
-		g.arrows = append(g.arrows, arrow)
+
+		if fromExists && toExists {
+			arrow := &Arrow{
+				FromCardID: as.FromCardID,
+				FromPort:   as.FromPort,
+				ToCardID:   as.ToCardID,
+				ToPort:     as.ToPort,
+				Color:      ColorArrowDefault,
+			}
+			validArrows = append(validArrows, arrow)
+		} else {
+			// Optional: Log dropped arrow?
+			// fmt.Printf("Dropping invalid arrow: %s->%s\n", as.FromCardID, as.ToCardID)
+		}
 	}
+	g.arrows = validArrows
 
 	return nil
 }

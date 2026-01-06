@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image/color"
 	"math"
 
@@ -22,7 +21,7 @@ func (a *Arrow) Draw(screen *ebiten.Image, g *Game, cw, ch float64) {
 	toCard := g.getCardByID(a.ToCardID)
 
 	if fromCard == nil || toCard == nil {
-		fmt.Printf("Miss Draw: %s->%s (%v, %v)\n", a.FromCardID, a.ToCardID, fromCard, toCard)
+		// fmt.Printf("Miss Draw: %s->%s (%v, %v)\n", a.FromCardID, a.ToCardID, fromCard, toCard)
 		return
 	}
 	// fmt.Printf("Drawing Arrow: %s:%s -> %s:%s\n", fromCard.Title, a.FromPort, toCard.Title, a.ToPort)
