@@ -143,7 +143,7 @@ func (c *Card) drawResizeHandles(screen *ebiten.Image, g *Game, hovered bool, wx
 
 func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx, wy float64) {
 	// Title
-	msg := fmt.Sprintf("%s\n(%.0f, %.0f)", c.Title, c.X, c.Y)
+	msg := fmt.Sprintf("%s\nID: %s\n(%.0f, %.0f)", c.Title, c.ID, c.X, c.Y)
 	ebitenutil.DebugPrintAt(screen, msg, int(sx+5), int(sy+5))
 
 	// Buttons

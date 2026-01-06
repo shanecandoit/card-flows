@@ -159,6 +159,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		hoverStatus,
 	), 10, 10)
 
+	// Print card IDs for debugging
+	if hoveredCard != nil {
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("ID: %s", hoveredCard.ID), 10, 100)
+	}
+
 	g.ui.Draw(screen)
 
 	// --- Save Screenshot ---

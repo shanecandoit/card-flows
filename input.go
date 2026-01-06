@@ -427,6 +427,20 @@ func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
 			// 	continue
 			// }
 
+			// --- Single Input Constraint: Remove existing connections to this input ---
+			// An input port can only have one incoming arrow.
+			filteredArrows := g.arrows[:0] // Reuse storage
+			removedCount := 0
+			for _, arrow := range g.arrows {
+				if arrow.ToCardID == targetCard.ID && arrow.ToPort == targetPort.Name {
+					removedCount++
+					fmt.Printf("Removing existing arrow to %s:%s\n", targetCard.Title, targetPort.Name)
+					continue // Skip (delete) this arrow
+				}
+				filteredArrows = append(filteredArrows, arrow)
+			}
+			g.arrows = filteredArrows
+
 			// --- Create Connection ---
 			newArrow := &Arrow{
 				FromCardID: is.dragStartCard.ID,
@@ -436,6 +450,11 @@ func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
 				Color:      ColorArrowDefault,
 			}
 			g.arrows = append(g.arrows, newArrow)
+
+			fmt.Printf("Connected %s (%s) -> %s (%s). Total Arrows: %d\n",
+				is.dragStartCard.Title, is.dragStartPort,
+				targetCard.Title, targetPort.Name, len(g.arrows))
+
 			return // Success
 		}
 	}
