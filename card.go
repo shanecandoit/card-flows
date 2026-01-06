@@ -235,8 +235,24 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 		for i, port := range c.Inputs {
 			py := c.Y + headerHeight + ySpacing*float64(i+1)
 			spx, spy := g.camera.WorldToScreen(c.X, py, cw, ch)
-			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), ColorPortBody, false)
-			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), ColorPortDot, false)
+
+			// Determine port color
+			portColor := ColorPortBody
+			dotColor := ColorPortDot
+			if g.input.hoveredPortCard == c && g.input.hoveredPortInfo != nil &&
+				g.input.hoveredPortInfo.IsInput && g.input.hoveredPortInfo.Name == port.Name {
+				portColor = ColorPortHover
+				dotColor = ColorPortHover
+			}
+
+			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), portColor, false)
+			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), dotColor, false)
+
+			// Add highlight ring when hovered
+			if portColor == ColorPortHover {
+				vector.StrokeCircle(screen, float32(spx), float32(spy), float32(portSize/2+2*zoom), 2*float32(zoom), ColorPortHighlight, false)
+			}
+
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
 			ebitenutil.DebugPrintAt(screen, label, int(spx+portSize), int(spy-8*zoom))
 		}
@@ -248,8 +264,23 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 		for i, port := range c.Outputs {
 			px := c.X + xSpacing*float64(i+1)
 			spx, spy := g.camera.WorldToScreen(px, c.Y+c.Height, cw, ch)
-			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), ColorPortBody, false)
-			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), ColorPortDot, false)
+
+			// Determine port color
+			portColor := ColorPortBody
+			dotColor := ColorPortDot
+			if g.input.dragStartCard == c && g.input.dragStartPort == port.Name {
+				portColor = ColorPortActive
+				dotColor = ColorPortActive
+			}
+
+			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), portColor, false)
+			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), dotColor, false)
+
+			// Add highlight ring when active
+			if portColor == ColorPortActive {
+				vector.StrokeCircle(screen, float32(spx), float32(spy), float32(portSize/2+2*zoom), 2*float32(zoom), ColorPortActive, false)
+			}
+
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
 			ebitenutil.DebugPrintAt(screen, label, int(spx-20*zoom), int(spy-20*zoom))
 		}

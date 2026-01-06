@@ -375,6 +375,21 @@ func (is *InputSystem) handlePanning(mx, my int, overUI bool) {
 func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
 	g := is.game
 
+	// --- Update hovered port during drag ---
+	if is.draggingArrow {
+		is.hoveredPortCard = nil
+		is.hoveredPortInfo = nil
+		for i := len(g.cards) - 1; i >= 0; i-- {
+			card := g.cards[i]
+			portInfo := card.GetPortAt(wx, wy, g.camera.Zoom)
+			if portInfo != nil && portInfo.IsInput && card != is.dragStartCard {
+				is.hoveredPortCard = card
+				is.hoveredPortInfo = portInfo
+				break
+			}
+		}
+	}
+
 	// --- Start dragging a new arrow ---
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		for i := len(g.cards) - 1; i >= 0; i-- {
@@ -397,6 +412,8 @@ func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
 			is.draggingArrow = false
 			is.dragStartCard = nil
 			is.dragStartPort = ""
+			is.hoveredPortCard = nil
+			is.hoveredPortInfo = nil
 		}()
 
 		// Check if we dropped on a valid port

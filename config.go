@@ -68,4 +68,7 @@ var (
 	ColorCardActionDuplicate = color.RGBA{80, 160, 240, 255}
 	ColorArrowDefault        = color.RGBA{200, 200, 200, 255}
 	ColorArrowDrag           = color.RGBA{255, 255, 100, 180}
+	ColorPortHighlight       = color.RGBA{100, 200, 255, 255}
+	ColorPortActive          = color.RGBA{255, 200, 50, 255}
+	ColorPortHover           = color.RGBA{150, 255, 150, 255}
 )
