@@ -48,17 +48,38 @@ func (g *Game) AddTextCard(x, y float64) *Card {
 }
 
 func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool) {
-	screenX, screenY := g.worldToScreen(c.X, c.Y, cw, ch)
-	screenW := c.Width * g.camera.Zoom
-	screenH := c.Height * g.camera.Zoom
+	sx, sy := g.worldToScreen(c.X, c.Y, cw, ch)
+	sw := c.Width * g.camera.Zoom
+	sh := c.Height * g.camera.Zoom
 
+	mx, my := ebiten.CursorPosition()
+	wx, wy := g.screenToWorld(float64(mx), float64(my))
+
+	c.drawBody(screen, g, sx, sy, sw, sh)
+	c.drawSelectionBorder(screen, g, hovered, sx, sy, sw, sh)
+	c.drawResizeHandles(screen, g, hovered, wx, wy, cw, ch)
+	c.drawHeader(screen, g, sx, sy, sw, wx, wy)
+
+	headerHeight := HeaderHeight
+	footerHeight := 0.0
+	if len(c.Outputs) > 0 {
+		footerHeight = FooterHeight
+	}
+
+	c.drawContent(screen, g, sx, sy, headerHeight)
+	c.drawDividers(screen, g, sx, sy, sw, sh, headerHeight, footerHeight, cw, ch)
+	c.drawPorts(screen, g, sx, sy, sw, sh, headerHeight, footerHeight, cw, ch)
+}
+
+func (c *Card) drawBody(screen *ebiten.Image, g *Game, sx, sy, sw, sh float64) {
 	// Shadow
-	vector.DrawFilledRect(screen, float32(screenX+ShadowOffset*g.camera.Zoom), float32(screenY+ShadowOffset*g.camera.Zoom), float32(screenW), float32(screenH), ColorShadow, false)
-
+	zoom := g.camera.Zoom
+	vector.DrawFilledRect(screen, float32(sx+ShadowOffset*zoom), float32(sy+ShadowOffset*zoom), float32(sw), float32(sh), ColorShadow, false)
 	// Body
-	vector.DrawFilledRect(screen, float32(screenX), float32(screenY), float32(screenW), float32(screenH), c.Color, false)
+	vector.DrawFilledRect(screen, float32(sx), float32(sy), float32(sw), float32(sh), c.Color, false)
+}
 
-	// Border Logic
+func (c *Card) drawSelectionBorder(screen *ebiten.Image, g *Game, hovered bool, sx, sy, sw, sh float64) {
 	borderColor := color.RGBA{0, 0, 0, 0}
 	showBorder := false
 
@@ -75,19 +96,19 @@ func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool)
 	}
 
 	if showBorder {
-		borderThickness := float32(BorderThickness * g.camera.Zoom)
-		borderOffset := float32(BorderOffset * g.camera.Zoom)
+		zoom := g.camera.Zoom
+		thickness := float32(BorderThickness * zoom)
+		offset := float32(BorderOffset * zoom)
 		vector.StrokeRect(screen,
-			float32(screenX)-borderOffset-borderThickness/2,
-			float32(screenY)-borderOffset-borderThickness/2,
-			float32(screenW)+2*(borderOffset+borderThickness/2),
-			float32(screenH)+2*(borderOffset+borderThickness/2),
-			borderThickness, borderColor, false)
+			float32(sx)-offset-thickness/2,
+			float32(sy)-offset-thickness/2,
+			float32(sw)+2*(offset+thickness/2),
+			float32(sh)+2*(offset+thickness/2),
+			thickness, borderColor, false)
 	}
+}
 
-	// Draw Corner Handle if hovering or resizing
-	mx, my := ebiten.CursorPosition()
-	wx, wy := g.screenToWorld(float64(mx), float64(my))
+func (c *Card) drawResizeHandles(screen *ebiten.Image, g *Game, hovered bool, wx, wy float64, cw, ch float64) {
 	resizingThis := (c == g.input.resizingCard)
 	hCorner := c.GetCornerAt(wx, wy, g.camera.Zoom)
 	if (hovered && hCorner != -1) || resizingThis {
@@ -113,83 +134,82 @@ func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool)
 		vector.DrawFilledCircle(screen, float32(scx), float32(scy), radius, ColorCornerHandle, false)
 		vector.StrokeCircle(screen, float32(scx), float32(scy), radius, 2, ColorCardHover, false)
 	}
+}
 
+func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx, wy float64) {
 	// Title
 	msg := fmt.Sprintf("%s\n(%.0f, %.0f)", c.Title, c.X, c.Y)
-	ebitenutil.DebugPrintAt(screen, msg, int(screenX+5), int(screenY+5))
+	ebitenutil.DebugPrintAt(screen, msg, int(sx+5), int(sy+5))
 
-	// --- Action Buttons (dup and X) ---
-	mx, my = ebiten.CursorPosition()
-	wx, wy = g.screenToWorld(float64(mx), float64(my))
+	// Buttons
+	zoom := g.camera.Zoom
+	btnW := CardActionButtonWidth * zoom
+	btnH := CardActionButtonHeight * zoom
+	btnMargin := 5.0 * zoom
 
-	btnW := CardActionButtonWidth * g.camera.Zoom
-	btnH := CardActionButtonHeight * g.camera.Zoom
-	btnMargin := 5.0 * g.camera.Zoom
-
-	// X button (Delete)
-	xBtnX := screenX + screenW - btnW - btnMargin
-	xBtnY := screenY + btnMargin
+	// X (Delete)
+	xBtnX := sx + sw - btnW - btnMargin
+	xBtnY := sy + btnMargin
 	xHover := wx >= c.X+(c.Width-CardActionButtonWidth-5) && wx <= c.X+c.Width-5 &&
 		wy >= c.Y+5 && wy <= c.Y+5+CardActionButtonHeight
 
-	xColor := ColorCardActionDelete
+	xColor := ColorButtonBackground
+	xColor.A = 30
 	if xHover {
+		xColor = ColorCardActionDelete
 		xColor.A = 200
-	} else {
-		xColor.A = 100
 	}
 	vector.DrawFilledRect(screen, float32(xBtnX), float32(xBtnY), float32(btnW), float32(btnH), xColor, false)
 	ebitenutil.DebugPrintAt(screen, "X", int(xBtnX+btnW/2-4), int(xBtnY+btnH/2-8))
 
-	// dup button (Duplicate)
+	// ++ (Duplicate)
 	dBtnX := xBtnX - btnW - btnMargin
-	dBtnY := screenY + btnMargin
+	dBtnY := sy + btnMargin
 	dHover := wx >= c.X+(c.Width-2*CardActionButtonWidth-10) && wx <= c.X+(c.Width-CardActionButtonWidth-10) &&
 		wy >= c.Y+5 && wy <= c.Y+5+CardActionButtonHeight
 
-	dColor := ColorCardActionDuplicate
+	dColor := ColorButtonBackground
+	dColor.A = 30
 	if dHover {
+		dColor = ColorCardActionDuplicate
 		dColor.A = 200
-	} else {
-		dColor.A = 100
 	}
 	vector.DrawFilledRect(screen, float32(dBtnX), float32(dBtnY), float32(btnW), float32(btnH), dColor, false)
 	ebitenutil.DebugPrintAt(screen, "++", int(dBtnX+btnW/2-6), int(dBtnY+btnH/2-8))
+}
 
-	// --- Text Content ---
-	headerHeight := HeaderHeight
+func (c *Card) drawContent(screen *ebiten.Image, g *Game, sx, sy, headerHeight float64) {
 	textContent := c.Text
 	if c.IsEditing {
-		// Blinking cursor
 		if (time.Now().UnixMilli()/CursorBlinkRate)%2 == 0 {
 			textContent += "|"
 		}
 	}
+	ebitenutil.DebugPrintAt(screen, textContent, int(sx+10), int(sy+headerHeight+10))
+}
 
-	// Simple text wrapping / positioning
-	// For now, just print it in the middle
-	ebitenutil.DebugPrintAt(screen, textContent, int(screenX+10), int(screenY+headerHeight+10))
-
-	// --- Dividers ---
-	dividerColor := ColorDivider
+func (c *Card) drawDividers(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHeight, footerHeight float64, cw, ch float64) {
+	color := ColorDivider
+	// Header divider
 	hy := c.Y + headerHeight
 	shx1, shy := g.worldToScreen(c.X, hy, cw, ch)
 	shx2, _ := g.worldToScreen(c.X+c.Width, hy, cw, ch)
-	vector.StrokeLine(screen, float32(shx1), float32(shy), float32(shx2), float32(shy), 1, dividerColor, false)
+	vector.StrokeLine(screen, float32(shx1), float32(shy), float32(shx2), float32(shy), 1, color, false)
 
-	footerHeight := 0.0
-	if len(c.Outputs) > 0 {
-		footerHeight = FooterHeight
+	// Footer divider
+	if footerHeight > 0 {
 		fy := c.Y + c.Height - footerHeight
 		sfx1, sfy := g.worldToScreen(c.X, fy, cw, ch)
 		sfx2, _ := g.worldToScreen(c.X+c.Width, fy, cw, ch)
-		vector.StrokeLine(screen, float32(sfx1), float32(sfy), float32(sfx2), float32(sfy), 1, dividerColor, false)
+		vector.StrokeLine(screen, float32(sfx1), float32(sfy), float32(sfx2), float32(sfy), 1, color, false)
 	}
+}
 
-	// --- Ports Rendering ---
-	portSize := PortSize * g.camera.Zoom
+func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHeight, footerHeight float64, cw, ch float64) {
+	zoom := g.camera.Zoom
+	portSize := PortSize * zoom
 
-	// Inputs (Left edge)
+	// Inputs (Left)
 	if len(c.Inputs) > 0 {
 		usableHeight := c.Height - headerHeight - footerHeight
 		ySpacing := usableHeight / float64(len(c.Inputs)+1)
@@ -197,22 +217,22 @@ func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool)
 			py := c.Y + headerHeight + ySpacing*float64(i+1)
 			spx, spy := g.worldToScreen(c.X, py, cw, ch)
 			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), ColorPortBody, false)
-			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*g.camera.Zoom), ColorPortDot, false)
+			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), ColorPortDot, false)
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
-			ebitenutil.DebugPrintAt(screen, label, int(spx+portSize), int(spy-8*g.camera.Zoom))
+			ebitenutil.DebugPrintAt(screen, label, int(spx+portSize), int(spy-8*zoom))
 		}
 	}
 
-	// Outputs (Bottom edge)
+	// Outputs (Bottom)
 	if len(c.Outputs) > 0 {
 		xSpacing := c.Width / float64(len(c.Outputs)+1)
 		for i, port := range c.Outputs {
 			px := c.X + xSpacing*float64(i+1)
 			spx, spy := g.worldToScreen(px, c.Y+c.Height, cw, ch)
 			vector.DrawFilledRect(screen, float32(spx-portSize/2), float32(spy-portSize/2), float32(portSize), float32(portSize), ColorPortBody, false)
-			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*g.camera.Zoom), ColorPortDot, false)
+			vector.DrawFilledCircle(screen, float32(spx), float32(spy), float32(3*zoom), ColorPortDot, false)
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
-			ebitenutil.DebugPrintAt(screen, label, int(spx-20*g.camera.Zoom), int(spy-20*g.camera.Zoom))
+			ebitenutil.DebugPrintAt(screen, label, int(spx-20*zoom), int(spy-20*zoom))
 		}
 	}
 }

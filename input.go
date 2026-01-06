@@ -42,7 +42,23 @@ func NewInputSystem(g *Game) *InputSystem {
 
 func (is *InputSystem) Update() {
 	g := is.game
+	mx, my := ebiten.CursorPosition()
+	wx, wy := g.screenToWorld(float64(mx), float64(my))
+	overUI := is.game.ui.IsMouseOver(mx, my)
 
+	is.handleControlKeys()
+	is.handleZoom()
+
+	if is.handleTextEditing(wx, wy) {
+		return
+	}
+
+	is.handleMouseInteraction(mx, my, wx, wy, overUI)
+	is.handlePanning(mx, my, overUI)
+}
+
+func (is *InputSystem) handleControlKeys() {
+	g := is.game
 	// --- Screenshot ---
 	if inpututil.IsKeyJustPressed(ebiten.KeyF1) {
 		g.screenshotRequested = true
@@ -52,11 +68,13 @@ func (is *InputSystem) Update() {
 	if ebiten.IsKeyPressed(ebiten.KeyControl) && inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		err := SaveState(g, "state.yaml")
 		if err != nil {
-			// In a real app we'd show a UI notification, for now let's just use log or ignore errors
+			// In a real app we'd show a UI notification
 		}
 	}
+}
 
-	// --- Zooming ---
+func (is *InputSystem) handleZoom() {
+	g := is.game
 	_, dy := ebiten.Wheel()
 
 	// Keyboard Zooming
@@ -74,44 +92,37 @@ func (is *InputSystem) Update() {
 			g.camera.Zoom = newZoom
 		}
 	}
+}
 
-	mx, my := ebiten.CursorPosition()
-	wx, wy := g.screenToWorld(float64(mx), float64(my)) // Helpers still on Game for now
-
-	// We'll handle UI blockage check here by asking the UI system
-	// For now, I'll duplicate the simple check or assume UI is handled before/after depending on design.
-	// The user asked to pull out UI logic too.
-	// Ideally, UI Update runs first and returns 'captured' bool.
-	// For this step, I'll access the simple check logic if possible, or replicate it.
-
-	overUI := is.game.ui.IsMouseOver(mx, my)
-
-	// --- Text Editing Handling ---
-	if is.editingCard != nil {
-		// Capture characters
-		is.editingCard.Text = string(ebiten.AppendInputChars([]rune(is.editingCard.Text)))
-
-		// Handle Backspace
-		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(is.editingCard.Text) > 0 {
-			is.editingCard.Text = is.editingCard.Text[:len(is.editingCard.Text)-1]
-		}
-
-		// Handle Enter or Click Outside to Commit
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
-			(inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && g.getCardAt(wx, wy) != is.editingCard) {
-
-			is.editingCard.IsEditing = false
-			is.editingCard.IsCommit = true // Placeholder for "commit mode" logic
-			is.editingCard = nil
-			// If we clicked outside, don't return, let the click be handled for other things?
-			// User said "when they click outside... then the text card enters commit mode... then its a regular text card".
-			// Let's return if we handled something to avoid double actions in one frame.
-			return
-		}
-
-		// In editing mode, we block most other interactions
-		return
+func (is *InputSystem) handleTextEditing(wx, wy float64) bool {
+	g := is.game
+	if is.editingCard == nil {
+		return false
 	}
+
+	// Capture characters
+	is.editingCard.Text = string(ebiten.AppendInputChars([]rune(is.editingCard.Text)))
+
+	// Handle Backspace
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(is.editingCard.Text) > 0 {
+		is.editingCard.Text = is.editingCard.Text[:len(is.editingCard.Text)-1]
+	}
+
+	// Handle Enter or Click Outside to Commit
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+		(inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && g.getCardAt(wx, wy) != is.editingCard) {
+
+		is.editingCard.IsEditing = false
+		is.editingCard.IsCommit = true
+		is.editingCard = nil
+		return true
+	}
+
+	return true // In editing mode, we block most other interactions
+}
+
+func (is *InputSystem) handleMouseInteraction(mx, my int, wx, wy float64, overUI bool) {
+	g := is.game
 
 	// --- Mouse Click / Double Click Handling ---
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) && !overUI {
@@ -130,25 +141,15 @@ func (is *InputSystem) Update() {
 		if isDoubleClick {
 			card := g.getCardAt(wx, wy)
 			if card != nil {
-				// Check if we clicked an action button
-				// X button (Delete)
-				if wx >= card.X+(card.Width-CardActionButtonWidth-5) && wx <= card.X+card.Width-5 &&
-					wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
-					g.DeleteCard(card)
+				// Action buttons logic
+				if is.handleActionButtons(card, wx, wy) {
 					return
 				}
-				// dup button (Duplicate)
-				if wx >= card.X+(card.Width-2*CardActionButtonWidth-10) && wx <= card.X+(card.Width-CardActionButtonWidth-10) &&
-					wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
-					g.DuplicateCard(card)
-					return
-				}
-
-				// Double-click on card -> Start editing
+				// Start editing
 				is.editingCard = card
 				card.IsEditing = true
 			} else {
-				// Double-click on empty space -> Create card
+				// Create card
 				newCard := g.AddTextCard(wx, wy)
 				is.editingCard = newCard
 				newCard.IsEditing = true
@@ -156,131 +157,142 @@ func (is *InputSystem) Update() {
 			return
 		}
 
-		// Single click logic (Resizing or Dragging or Buttons)
-		card := g.getCardAt(wx, wy)
-		if card != nil {
-			// Check buttons on single click too?
-			// Usually delete/dup should be single click if they are distinct buttons.
-			// The user said "duplicate and delete... so we can duplicate or delete cards".
-			// Let's handle them on single click to be responsive.
-
-			// X button (Delete)
-			if wx >= card.X+(card.Width-CardActionButtonWidth-5) && wx <= card.X+card.Width-5 &&
-				wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
-				g.DeleteCard(card)
-				return
-			}
-			// dup button (Duplicate)
-			if wx >= card.X+(card.Width-2*CardActionButtonWidth-10) && wx <= card.X+(card.Width-CardActionButtonWidth-10) &&
-				wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
-				g.DuplicateCard(card)
+		// Single click logic
+		if card := g.getCardAt(wx, wy); card != nil {
+			if is.handleActionButtons(card, wx, wy) {
 				return
 			}
 		}
 
+		// Resizing check
 		for i := len(g.cards) - 1; i >= 0; i-- {
 			card := g.cards[i]
 			corner := card.GetCornerAt(wx, wy, g.camera.Zoom)
 			if corner != -1 {
 				is.resizingCard = card
 				is.resizingCorner = corner
-				break
+				return
 			}
 		}
 
-		if is.resizingCard == nil {
-			if card := g.getCardAt(wx, wy); card != nil {
-				is.activeCard = card
-				is.dragOffsetX = wx - card.X
-				is.dragOffsetY = wy - card.Y
-				is.isHot = true
-			}
+		// Dragging check
+		if card := g.getCardAt(wx, wy); card != nil {
+			is.activeCard = card
+			is.dragOffsetX = wx - card.X
+			is.dragOffsetY = wy - card.Y
+			is.isHot = true
 		}
 	} else if is.resizingCard != nil {
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			card := is.resizingCard
-			minSize := MinCardSize
-			maxSize := MaxCardSize
-
-			swx := math.Round(wx/SnapGridLarge) * SnapGridLarge
-			swy := math.Round(wy/SnapGridLarge) * SnapGridLarge
-
-			switch is.resizingCorner {
-			case 0: // TL
-				diffX := card.X - swx
-				diffY := card.Y - swy
-				newW := card.Width + diffX
-				newH := card.Height + diffY
-				if newW >= minSize && newW <= maxSize {
-					card.X = swx
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Y = swy
-					card.Height = newH
-				}
-			case 1: // TR
-				newW := swx - card.X
-				diffY := card.Y - swy
-				newH := card.Height + diffY
-				if newW >= minSize && newW <= maxSize {
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Y = swy
-					card.Height = newH
-				}
-			case 2: // BL
-				diffX := card.X - swx
-				newW := card.Width + diffX
-				newH := swy - card.Y
-				if newW >= minSize && newW <= maxSize {
-					card.X = swx
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Height = newH
-				}
-			case 3: // BR
-				newW := swx - card.X
-				newH := swy - card.Y
-				if newW >= minSize && newW <= maxSize {
-					card.Width = newW
-				}
-				if newH >= minSize && newH <= maxSize {
-					card.Height = newH
-				}
-			}
-		} else {
-			is.resizingCard.Width = math.Round(is.resizingCard.Width/SnapGridLarge) * SnapGridLarge
-			is.resizingCard.Height = math.Round(is.resizingCard.Height/SnapGridLarge) * SnapGridLarge
-			is.resizingCard = nil
-		}
+		is.handleResizing(wx, wy)
 	} else if is.activeCard != nil {
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			is.isHot = false
-			newX := wx - is.dragOffsetX
-			newY := wy - is.dragOffsetY
-
-			is.activeCard.X = math.Round(newX/SnapGridSmall) * SnapGridSmall
-			is.activeCard.Y = math.Round(newY/SnapGridSmall) * SnapGridSmall
-		} else {
-			is.activeCard.X = math.Round(is.activeCard.X/SnapGridLarge) * SnapGridLarge
-			is.activeCard.Y = math.Round(is.activeCard.Y/SnapGridLarge) * SnapGridLarge
-
-			if is.activeCard.X < 0 {
-				is.activeCard.X = 0
-			}
-			if is.activeCard.Y < 0 {
-				is.activeCard.Y = 0
-			}
-
-			is.activeCard = nil
-			is.isHot = false
-		}
+		is.handleDragging(wx, wy)
 	}
+}
 
-	// --- Panning ---
+func (is *InputSystem) handleActionButtons(card *Card, wx, wy float64) bool {
+	// X button (Delete)
+	if wx >= card.X+(card.Width-CardActionButtonWidth-5) && wx <= card.X+card.Width-5 &&
+		wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
+		is.game.DeleteCard(card)
+		return true
+	}
+	// ++ button (Duplicate)
+	if wx >= card.X+(card.Width-2*CardActionButtonWidth-10) && wx <= card.X+(card.Width-CardActionButtonWidth-10) &&
+		wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
+		is.game.DuplicateCard(card)
+		return true
+	}
+	return false
+}
+
+func (is *InputSystem) handleResizing(wx, wy float64) {
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		card := is.resizingCard
+		minSize := MinCardSize
+		maxSize := MaxCardSize
+
+		swx := math.Round(wx/SnapGridLarge) * SnapGridLarge
+		swy := math.Round(wy/SnapGridLarge) * SnapGridLarge
+
+		switch is.resizingCorner {
+		case 0: // TL
+			diffX := card.X - swx
+			diffY := card.Y - swy
+			newW := card.Width + diffX
+			newH := card.Height + diffY
+			if newW >= minSize && newW <= maxSize {
+				card.X = swx
+				card.Width = newW
+			}
+			if newH >= minSize && newH <= maxSize {
+				card.Y = swy
+				card.Height = newH
+			}
+		case 1: // TR
+			newW := swx - card.X
+			diffY := card.Y - swy
+			newH := card.Height + diffY
+			if newW >= minSize && newW <= maxSize {
+				card.Width = newW
+			}
+			if newH >= minSize && newH <= maxSize {
+				card.Y = swy
+				card.Height = newH
+			}
+		case 2: // BL
+			diffX := card.X - swx
+			newW := card.Width + diffX
+			newH := swy - card.Y
+			if newW >= minSize && newW <= maxSize {
+				card.X = swx
+				card.Width = newW
+			}
+			if newH >= minSize && newH <= maxSize {
+				card.Height = newH
+			}
+		case 3: // BR
+			newW := swx - card.X
+			newH := swy - card.Y
+			if newW >= minSize && newW <= maxSize {
+				card.Width = newW
+			}
+			if newH >= minSize && newH <= maxSize {
+				card.Height = newH
+			}
+		}
+	} else {
+		is.resizingCard.Width = math.Round(is.resizingCard.Width/SnapGridLarge) * SnapGridLarge
+		is.resizingCard.Height = math.Round(is.resizingCard.Height/SnapGridLarge) * SnapGridLarge
+		is.resizingCard = nil
+	}
+}
+
+func (is *InputSystem) handleDragging(wx, wy float64) {
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		is.isHot = false
+		newX := wx - is.dragOffsetX
+		newY := wy - is.dragOffsetY
+
+		is.activeCard.X = math.Round(newX/SnapGridSmall) * SnapGridSmall
+		is.activeCard.Y = math.Round(newY/SnapGridSmall) * SnapGridSmall
+	} else {
+		is.activeCard.X = math.Round(is.activeCard.X/SnapGridLarge) * SnapGridLarge
+		is.activeCard.Y = math.Round(is.activeCard.Y/SnapGridLarge) * SnapGridLarge
+
+		if is.activeCard.X < 0 {
+			is.activeCard.X = 0
+		}
+		if is.activeCard.Y < 0 {
+			is.activeCard.Y = 0
+		}
+
+		is.activeCard = nil
+		is.isHot = false
+	}
+}
+
+func (is *InputSystem) handlePanning(mx, my int, overUI bool) {
+	g := is.game
 	isPanButtonHeld := ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) ||
 		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && is.activeCard == nil && is.resizingCard == nil && !overUI)
 
@@ -293,7 +305,8 @@ func (is *InputSystem) Update() {
 				if ebiten.IsKeyPressed(ebiten.KeySpace) {
 					shouldStartPan = true
 				} else {
-					if g.getCardAt(wx, wy) == nil {
+					mxWorld, myWorld := g.screenToWorld(float64(mx), float64(my))
+					if g.getCardAt(mxWorld, myWorld) == nil {
 						shouldStartPan = true
 					}
 				}
