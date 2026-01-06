@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -22,8 +23,25 @@ type Card struct {
 	Width, Height float64
 	Color         color.Color
 	Title         string
+	Text          string
+	IsEditing     bool
+	IsCommit      bool
 	Inputs        []Port
 	Outputs       []Port
+}
+
+func (g *Game) AddTextCard(x, y float64) *Card {
+	card := &Card{
+		X:      math.Round(x/50) * 50,
+		Y:      math.Round(y/50) * 50,
+		Width:  200,
+		Height: 100,
+		Color:  color.RGBA{45, 45, 50, 255},
+		Title:  "Text Card",
+		Text:   "",
+	}
+	g.cards = append(g.cards, card)
+	return card
 }
 
 func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool) {
@@ -97,9 +115,22 @@ func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool)
 	msg := fmt.Sprintf("%s\n(%.0f, %.0f)", c.Title, c.X, c.Y)
 	ebitenutil.DebugPrintAt(screen, msg, int(screenX+5), int(screenY+5))
 
+	// --- Text Content ---
+	headerHeight := 50.0
+	textContent := c.Text
+	if c.IsEditing {
+		// Blinking cursor
+		if (time.Now().UnixMilli()/500)%2 == 0 {
+			textContent += "|"
+		}
+	}
+
+	// Simple text wrapping / positioning
+	// For now, just print it in the middle
+	ebitenutil.DebugPrintAt(screen, textContent, int(screenX+10), int(screenY+headerHeight+10))
+
 	// --- Dividers ---
 	dividerColor := color.RGBA{0, 0, 0, 50}
-	headerHeight := 50.0
 	hy := c.Y + headerHeight
 	shx1, shy := g.worldToScreen(c.X, hy, cw, ch)
 	shx2, _ := g.worldToScreen(c.X+c.Width, hy, cw, ch)

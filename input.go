@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -24,6 +25,13 @@ type InputSystem struct {
 	// Resizing state
 	resizingCard   *Card
 	resizingCorner int
+
+	// Double-click detection
+	lastClickTime int64
+	lastClickPos  [2]int
+
+	// Editing state
+	editingCard *Card
 }
 
 func NewInputSystem(g *Game) *InputSystem {
@@ -70,8 +78,63 @@ func (is *InputSystem) Update() {
 
 	overUI := is.game.ui.IsMouseOver(mx, my)
 
-	// --- Card Resizing Logic ---
+	// --- Text Editing Handling ---
+	if is.editingCard != nil {
+		// Capture characters
+		is.editingCard.Text = string(ebiten.AppendInputChars([]rune(is.editingCard.Text)))
+
+		// Handle Backspace
+		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(is.editingCard.Text) > 0 {
+			is.editingCard.Text = is.editingCard.Text[:len(is.editingCard.Text)-1]
+		}
+
+		// Handle Enter or Click Outside to Commit
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
+			(inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && g.getCardAt(wx, wy) != is.editingCard) {
+
+			is.editingCard.IsEditing = false
+			is.editingCard.IsCommit = true // Placeholder for "commit mode" logic
+			is.editingCard = nil
+			// If we clicked outside, don't return, let the click be handled for other things?
+			// User said "when they click outside... then the text card enters commit mode... then its a regular text card".
+			// Let's return if we handled something to avoid double actions in one frame.
+			return
+		}
+
+		// In editing mode, we block most other interactions
+		return
+	}
+
+	// --- Mouse Click / Double Click Handling ---
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) && !overUI {
+		now := time.Now().UnixMilli()
+		isDoubleClick := false
+		if now-is.lastClickTime < 500 {
+			dx := mx - is.lastClickPos[0]
+			dy := my - is.lastClickPos[1]
+			if dx*dx+dy*dy < 25 { // 5 pixel threshold
+				isDoubleClick = true
+			}
+		}
+		is.lastClickTime = now
+		is.lastClickPos = [2]int{mx, my}
+
+		if isDoubleClick {
+			card := g.getCardAt(wx, wy)
+			if card != nil {
+				// Double-click on card -> Start editing
+				is.editingCard = card
+				card.IsEditing = true
+			} else {
+				// Double-click on empty space -> Create card
+				newCard := g.AddTextCard(wx, wy)
+				is.editingCard = newCard
+				newCard.IsEditing = true
+			}
+			return
+		}
+
+		// Single click logic (Resizing or Dragging)
 		for i := len(g.cards) - 1; i >= 0; i-- {
 			card := g.cards[i]
 			corner := card.GetCornerAt(wx, wy, g.camera.Zoom)
