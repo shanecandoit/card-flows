@@ -123,6 +123,12 @@ func LoadState(g *Game, filename string) error {
 		for _, ps := range cs.Outputs {
 			card.Outputs = append(card.Outputs, Port{Name: ps.Name, Type: ps.Type})
 		}
+
+		// Migration: Ensure Text Cards have the default output if missing
+		if card.Title == "Text Card" && len(card.Outputs) == 0 {
+			card.Outputs = append(card.Outputs, Port{Name: "text", Type: "string"})
+		}
+
 		g.cards = append(g.cards, card)
 	}
 

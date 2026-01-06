@@ -1,8 +1,6 @@
 package main
 
 import (
-	"image/color"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -22,7 +20,7 @@ func (b *Button) IsMouseOver(mx, my int) bool {
 }
 
 func (b *Button) Draw(screen *ebiten.Image) {
-	buttonColor := color.RGBA{60, 60, 70, 200}
+	buttonColor := ColorButtonBackground
 	vector.DrawFilledRect(screen, b.X, b.Y, b.W, b.H, buttonColor, false)
 	ebitenutil.DebugPrintAt(screen, b.Label, int(b.X)+10, int(b.Y)+8)
 }
@@ -45,20 +43,20 @@ func (ui *UISystem) initButtons() {
 	ui.buttons = []*Button{
 		{
 			Label: "+",
-			W:     30, H: 30,
+			W:     ButtonWidth, H: ButtonHeight,
 			OnClick: func() {
-				newZoom := g.camera.Zoom * 1.1
-				if newZoom < 10.0 {
+				newZoom := g.camera.Zoom * (1 + ZoomSpeed)
+				if newZoom < ZoomLimitMax {
 					g.camera.Zoom = newZoom
 				}
 			},
 		},
 		{
 			Label: "-",
-			W:     30, H: 30,
+			W:     ButtonWidth, H: ButtonHeight,
 			OnClick: func() {
-				newZoom := g.camera.Zoom / 1.1
-				if newZoom > 0.1 {
+				newZoom := g.camera.Zoom / (1 + ZoomSpeed)
+				if newZoom > ZoomLimitMin {
 					g.camera.Zoom = newZoom
 				}
 			},
@@ -69,10 +67,10 @@ func (ui *UISystem) initButtons() {
 func (ui *UISystem) updateButtonPositions() {
 	g := ui.game
 	// Position relative to top-right
-	ui.buttons[0].X = float32(g.screenWidth - 40)
-	ui.buttons[0].Y = 10
-	ui.buttons[1].X = float32(g.screenWidth - 80)
-	ui.buttons[1].Y = 10
+	ui.buttons[0].X = float32(g.screenWidth) - ButtonWidth - ButtonMargin
+	ui.buttons[0].Y = ButtonMargin
+	ui.buttons[1].X = float32(g.screenWidth) - 2*ButtonWidth - 2*ButtonMargin
+	ui.buttons[1].Y = ButtonMargin
 }
 
 func (ui *UISystem) IsMouseOver(mx, my int) bool {

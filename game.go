@@ -26,7 +26,7 @@ type Game struct {
 
 func NewGame() *Game {
 	g := &Game{
-		camera: Camera{X: 400, Y: 200, Zoom: 1.0},
+		camera: Camera{X: DefaultCameraX, Y: DefaultCameraY, Zoom: DefaultCameraZoom},
 		cards:  []*Card{},
 	}
 
@@ -39,9 +39,19 @@ func NewGame() *Game {
 	}
 
 	// Default dummy cards if load fails
-	g.cards = append(g.cards, &Card{X: 50, Y: 50, Width: 200, Height: 120, Color: color.RGBA{100, 149, 237, 255}, Title: "Input Data"})
-	g.cards = append(g.cards, &Card{X: 300, Y: 200, Width: 180, Height: 100, Color: color.RGBA{255, 105, 180, 255}, Title: "Transformation"})
-	g.cards = append(g.cards, &Card{X: 100, Y: 400, Width: 220, Height: 140, Color: color.RGBA{60, 179, 113, 255}, Title: "Output Plot"})
+	g.cards = append(g.cards, &Card{
+		X: 50, Y: 50, Width: 200, Height: 120, Color: color.RGBA{100, 149, 237, 255}, Title: "Input Data",
+		Outputs: []Port{{Name: "data", Type: "any"}},
+	})
+	g.cards = append(g.cards, &Card{
+		X: 300, Y: 200, Width: 180, Height: 100, Color: color.RGBA{255, 105, 180, 255}, Title: "Transformation",
+		Inputs:  []Port{{Name: "in", Type: "any"}},
+		Outputs: []Port{{Name: "out", Type: "any"}},
+	})
+	g.cards = append(g.cards, &Card{
+		X: 100, Y: 400, Width: 220, Height: 140, Color: color.RGBA{60, 179, 113, 255}, Title: "Output Plot",
+		Inputs: []Port{{Name: "data", Type: "any"}},
+	})
 
 	// Add String:find_replace block
 	g.cards = append(g.cards, &Card{
@@ -71,6 +81,36 @@ func (g *Game) Update() error {
 	return nil
 }
 
+func (g *Game) DeleteCard(c *Card) {
+	newCards := []*Card{}
+	for _, card := range g.cards {
+		if card != c {
+			newCards = append(newCards, card)
+		}
+	}
+	g.cards = newCards
+}
+
+func (g *Game) DuplicateCard(c *Card) {
+	newCard := &Card{
+		X:      c.X + DuplicateOffset,
+		Y:      c.Y + DuplicateOffset,
+		Width:  c.Width,
+		Height: c.Height,
+		Color:  c.Color,
+		Title:  c.Title + " (Copy)",
+		Text:   c.Text,
+	}
+	// Copy ports
+	for _, p := range c.Inputs {
+		newCard.Inputs = append(newCard.Inputs, Port{Name: p.Name, Type: p.Type})
+	}
+	for _, p := range c.Outputs {
+		newCard.Outputs = append(newCard.Outputs, Port{Name: p.Name, Type: p.Type})
+	}
+	g.cards = append(g.cards, newCard)
+}
+
 func (g *Game) getCardAt(wx, wy float64) *Card {
 	for i := len(g.cards) - 1; i >= 0; i-- {
 		card := g.cards[i]
@@ -83,7 +123,7 @@ func (g *Game) getCardAt(wx, wy float64) *Card {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{30, 30, 35, 255})
+	screen.Fill(ColorBackground)
 
 	cw := float64(g.screenWidth) / 2
 	ch := float64(g.screenHeight) / 2

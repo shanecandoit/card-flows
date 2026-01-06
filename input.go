@@ -68,9 +68,9 @@ func (is *InputSystem) Update() {
 	}
 
 	if dy != 0 {
-		zoomSpeed := 0.1
+		zoomSpeed := ZoomSpeed
 		newZoom := g.camera.Zoom * math.Pow(1+zoomSpeed, dy)
-		if newZoom > 0.1 && newZoom < 10.0 {
+		if newZoom > ZoomLimitMin && newZoom < ZoomLimitMax {
 			g.camera.Zoom = newZoom
 		}
 	}
@@ -117,10 +117,10 @@ func (is *InputSystem) Update() {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !ebiten.IsKeyPressed(ebiten.KeySpace) && !overUI {
 		now := time.Now().UnixMilli()
 		isDoubleClick := false
-		if now-is.lastClickTime < 500 {
+		if now-is.lastClickTime < DoubleClickThreshold {
 			dx := mx - is.lastClickPos[0]
 			dy := my - is.lastClickPos[1]
-			if dx*dx+dy*dy < 25 { // 5 pixel threshold
+			if dx*dx+dy*dy < DoubleClickDistance {
 				isDoubleClick = true
 			}
 		}
@@ -130,6 +130,20 @@ func (is *InputSystem) Update() {
 		if isDoubleClick {
 			card := g.getCardAt(wx, wy)
 			if card != nil {
+				// Check if we clicked an action button
+				// X button (Delete)
+				if wx >= card.X+(card.Width-CardActionButtonWidth-5) && wx <= card.X+card.Width-5 &&
+					wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
+					g.DeleteCard(card)
+					return
+				}
+				// dup button (Duplicate)
+				if wx >= card.X+(card.Width-2*CardActionButtonWidth-10) && wx <= card.X+(card.Width-CardActionButtonWidth-10) &&
+					wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
+					g.DuplicateCard(card)
+					return
+				}
+
 				// Double-click on card -> Start editing
 				is.editingCard = card
 				card.IsEditing = true
@@ -142,7 +156,28 @@ func (is *InputSystem) Update() {
 			return
 		}
 
-		// Single click logic (Resizing or Dragging)
+		// Single click logic (Resizing or Dragging or Buttons)
+		card := g.getCardAt(wx, wy)
+		if card != nil {
+			// Check buttons on single click too?
+			// Usually delete/dup should be single click if they are distinct buttons.
+			// The user said "duplicate and delete... so we can duplicate or delete cards".
+			// Let's handle them on single click to be responsive.
+
+			// X button (Delete)
+			if wx >= card.X+(card.Width-CardActionButtonWidth-5) && wx <= card.X+card.Width-5 &&
+				wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
+				g.DeleteCard(card)
+				return
+			}
+			// dup button (Duplicate)
+			if wx >= card.X+(card.Width-2*CardActionButtonWidth-10) && wx <= card.X+(card.Width-CardActionButtonWidth-10) &&
+				wy >= card.Y+5 && wy <= card.Y+5+CardActionButtonHeight {
+				g.DuplicateCard(card)
+				return
+			}
+		}
+
 		for i := len(g.cards) - 1; i >= 0; i-- {
 			card := g.cards[i]
 			corner := card.GetCornerAt(wx, wy, g.camera.Zoom)
@@ -164,11 +199,11 @@ func (is *InputSystem) Update() {
 	} else if is.resizingCard != nil {
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			card := is.resizingCard
-			minSize := 50.0
-			maxSize := 500.0
+			minSize := MinCardSize
+			maxSize := MaxCardSize
 
-			swx := math.Round(wx/50) * 50
-			swy := math.Round(wy/50) * 50
+			swx := math.Round(wx/SnapGridLarge) * SnapGridLarge
+			swy := math.Round(wy/SnapGridLarge) * SnapGridLarge
 
 			switch is.resizingCorner {
 			case 0: // TL
@@ -217,8 +252,8 @@ func (is *InputSystem) Update() {
 				}
 			}
 		} else {
-			is.resizingCard.Width = math.Round(is.resizingCard.Width/50) * 50
-			is.resizingCard.Height = math.Round(is.resizingCard.Height/50) * 50
+			is.resizingCard.Width = math.Round(is.resizingCard.Width/SnapGridLarge) * SnapGridLarge
+			is.resizingCard.Height = math.Round(is.resizingCard.Height/SnapGridLarge) * SnapGridLarge
 			is.resizingCard = nil
 		}
 	} else if is.activeCard != nil {
@@ -227,11 +262,11 @@ func (is *InputSystem) Update() {
 			newX := wx - is.dragOffsetX
 			newY := wy - is.dragOffsetY
 
-			is.activeCard.X = math.Round(newX/10) * 10
-			is.activeCard.Y = math.Round(newY/10) * 10
+			is.activeCard.X = math.Round(newX/SnapGridSmall) * SnapGridSmall
+			is.activeCard.Y = math.Round(newY/SnapGridSmall) * SnapGridSmall
 		} else {
-			is.activeCard.X = math.Round(is.activeCard.X/50) * 50
-			is.activeCard.Y = math.Round(is.activeCard.Y/50) * 50
+			is.activeCard.X = math.Round(is.activeCard.X/SnapGridLarge) * SnapGridLarge
+			is.activeCard.Y = math.Round(is.activeCard.Y/SnapGridLarge) * SnapGridLarge
 
 			if is.activeCard.X < 0 {
 				is.activeCard.X = 0
@@ -277,11 +312,11 @@ func (is *InputSystem) Update() {
 			g.camera.X -= dx / g.camera.Zoom
 			g.camera.Y -= dy / g.camera.Zoom
 
-			if g.camera.X < -200 {
-				g.camera.X = -200
+			if g.camera.X < CameraLimitMin {
+				g.camera.X = CameraLimitMin
 			}
-			if g.camera.Y < -200 {
-				g.camera.Y = -200
+			if g.camera.Y < CameraLimitMin {
+				g.camera.Y = CameraLimitMin
 			}
 
 			is.lastMouseX, is.lastMouseY = mx, my
