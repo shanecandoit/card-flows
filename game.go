@@ -33,7 +33,12 @@ func NewGame() *Game {
 	g.input = NewInputSystem(g)
 	g.ui = NewUISystem(g)
 
-	// Add some dummy cards (Constrained to x >= 0, y >= 0)
+	err := LoadState(g, "state.yaml")
+	if err == nil {
+		return g
+	}
+
+	// Default dummy cards if load fails
 	g.cards = append(g.cards, &Card{X: 50, Y: 50, Width: 200, Height: 120, Color: color.RGBA{100, 149, 237, 255}, Title: "Input Data"})
 	g.cards = append(g.cards, &Card{X: 300, Y: 200, Width: 180, Height: 100, Color: color.RGBA{255, 105, 180, 255}, Title: "Transformation"})
 	g.cards = append(g.cards, &Card{X: 100, Y: 400, Width: 220, Height: 140, Color: color.RGBA{60, 179, 113, 255}, Title: "Output Plot"})

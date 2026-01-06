@@ -48,6 +48,14 @@ func (is *InputSystem) Update() {
 		g.screenshotRequested = true
 	}
 
+	// --- Save State ---
+	if ebiten.IsKeyPressed(ebiten.KeyControl) && inpututil.IsKeyJustPressed(ebiten.KeyS) {
+		err := SaveState(g, "state.yaml")
+		if err != nil {
+			// In a real app we'd show a UI notification, for now let's just use log or ignore errors
+		}
+	}
+
 	// --- Zooming ---
 	_, dy := ebiten.Wheel()
 
