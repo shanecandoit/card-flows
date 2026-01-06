@@ -20,6 +20,7 @@ type PortState struct {
 }
 
 type CardState struct {
+	ID      string      `yaml:"id"`
 	X       float64     `yaml:"x"`
 	Y       float64     `yaml:"y"`
 	Width   float64     `yaml:"width"`
@@ -54,6 +55,7 @@ func SaveState(g *Game, filename string) error {
 	for _, c := range g.cards {
 		r, g_val, b, a := c.Color.RGBA()
 		cardState := CardState{
+			ID:     c.ID,
 			X:      c.X,
 			Y:      c.Y,
 			Width:  c.Width,
@@ -108,7 +110,12 @@ func LoadState(g *Game, filename string) error {
 
 	g.cards = nil
 	for _, cs := range state.Cards {
+		id := cs.ID
+		if id == "" {
+			id = NewID()
+		}
 		card := &Card{
+			ID:     id,
 			X:      cs.X,
 			Y:      cs.Y,
 			Width:  cs.Width,
