@@ -66,4 +66,6 @@ var (
 	ColorButtonBackground    = color.RGBA{60, 60, 70, 200}
 	ColorCardActionDelete    = color.RGBA{220, 50, 50, 255}
 	ColorCardActionDuplicate = color.RGBA{80, 160, 240, 255}
+	ColorArrowDefault        = color.RGBA{200, 200, 200, 255}
+	ColorArrowDrag           = color.RGBA{255, 255, 100, 180}
 )

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -32,6 +34,15 @@ type InputSystem struct {
 
 	// Editing state
 	editingCard *Card
+
+	// Wiring state
+	draggingArrow    bool
+	dragStartCard    *Card
+	dragStartPort    string
+	dragStartIsInput bool
+
+	hoveredPortCard *Card
+	hoveredPortInfo *PortInfo
 }
 
 func NewInputSystem(g *Game) *InputSystem {
@@ -53,6 +64,11 @@ func (is *InputSystem) Update() {
 		return
 	}
 
+	is.handleWiring(mx, my, wx, wy)
+	if is.draggingArrow {
+		return // Block other interactions while wiring
+	}
+
 	is.handleMouseInteraction(mx, my, wx, wy, overUI)
 	is.handlePanning(mx, my, overUI)
 }
@@ -60,8 +76,14 @@ func (is *InputSystem) Update() {
 func (is *InputSystem) handleControlKeys() {
 	g := is.game
 	// --- Screenshot ---
-	if inpututil.IsKeyJustPressed(ebiten.KeyF1) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyF12) {
 		g.screenshotRequested = true
+	}
+
+	// --- Run Engine ---
+	if inpututil.IsKeyJustPressed(ebiten.KeyF5) {
+		fmt.Println("Running Flow...")
+		g.engine.Run()
 	}
 
 	// --- Save State ---
@@ -145,9 +167,20 @@ func (is *InputSystem) handleMouseInteraction(mx, my int, wx, wy float64, overUI
 				if is.handleActionButtons(card, wx, wy) {
 					return
 				}
-				// Start editing
-				is.editingCard = card
-				card.IsEditing = true
+
+				// Special handling for TextCard
+				if strings.HasPrefix(card.Title, "Text Card") {
+					// Only allow editing if the input port is not connected
+					if !g.IsInputPortConnected(card.ID, "text") {
+						is.editingCard = card
+						card.IsEditing = true
+					}
+				} else {
+					// Start editing for other card types if applicable
+					// is.editingCard = card
+					// card.IsEditing = true
+				}
+
 			} else {
 				// Create card
 				newCard := g.AddTextCard(wx, wy)
@@ -335,6 +368,75 @@ func (is *InputSystem) handlePanning(mx, my int, overUI bool) {
 			is.lastMouseX, is.lastMouseY = mx, my
 		} else {
 			is.isPanning = false
+		}
+	}
+}
+
+func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
+	g := is.game
+
+	// --- Start dragging a new arrow ---
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		for i := len(g.cards) - 1; i >= 0; i-- {
+			card := g.cards[i]
+			portInfo := card.GetPortAt(wx, wy, g.camera.Zoom)
+			// Start drag from an output port
+			if portInfo != nil && !portInfo.IsInput {
+				is.draggingArrow = true
+				is.dragStartCard = card
+				is.dragStartPort = portInfo.Name
+				return // Exit early
+			}
+		}
+	}
+
+	// --- Stop dragging an arrow ---
+	if is.draggingArrow && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
+		defer func() {
+			// Reset state regardless of outcome
+			is.draggingArrow = false
+			is.dragStartCard = nil
+			is.dragStartPort = ""
+		}()
+
+		// Check if we dropped on a valid port
+		for i := len(g.cards) - 1; i >= 0; i-- {
+			card := g.cards[i]
+			portInfo := card.GetPortAt(wx, wy, g.camera.Zoom)
+			if portInfo == nil || !portInfo.IsInput {
+				continue // Not a valid drop target port
+			}
+
+			// --- Validation ---
+			targetCard := card
+			targetPort := portInfo
+
+			// 1. Can't connect to self
+			if targetCard == is.dragStartCard {
+				continue
+			}
+
+			// 2. Y-axis constraint: Consumer must be below producer
+			if targetCard.Y < is.dragStartCard.Y {
+				continue // flash an error color?
+			}
+
+			// 3. Type checking (simple version)
+			// sourcePortType := "any" // TODO: get real type
+			// if sourcePortType != "any" && targetPort.Type != "any" && sourcePortType != targetPort.Type {
+			// 	continue
+			// }
+
+			// --- Create Connection ---
+			newArrow := &Arrow{
+				FromCardID: is.dragStartCard.ID,
+				FromPort:   is.dragStartPort,
+				ToCardID:   targetCard.ID,
+				ToPort:     targetPort.Name,
+				Color:      ColorArrowDefault,
+			}
+			g.arrows = append(g.arrows, newArrow)
+			return // Success
 		}
 	}
 }

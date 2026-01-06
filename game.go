@@ -13,13 +13,15 @@ import (
 
 type Game struct {
 	cards        []*Card
+	arrows       []*Arrow
 	camera       Camera
 	screenWidth  int
 	screenHeight int
 
 	// Sub-systems
-	input *InputSystem
-	ui    *UISystem
+	input  *InputSystem
+	ui     *UISystem
+	engine *Engine
 
 	screenshotRequested bool
 }
@@ -32,6 +34,7 @@ func NewGame() *Game {
 
 	g.input = NewInputSystem(g)
 	g.ui = NewUISystem(g)
+	g.engine = NewEngine(g)
 
 	err := LoadState(g, "state.yaml")
 	if err == nil {
@@ -40,21 +43,15 @@ func NewGame() *Game {
 
 	// Default dummy cards if load fails
 	g.cards = append(g.cards, &Card{
-		X: 50, Y: 50, Width: 200, Height: 120, Color: color.RGBA{100, 149, 237, 255}, Title: "Input Data",
-		Outputs: []Port{{Name: "data", Type: "any"}},
-	})
-	g.cards = append(g.cards, &Card{
-		X: 300, Y: 200, Width: 180, Height: 100, Color: color.RGBA{255, 105, 180, 255}, Title: "Transformation",
-		Inputs:  []Port{{Name: "in", Type: "any"}},
-		Outputs: []Port{{Name: "out", Type: "any"}},
-	})
-	g.cards = append(g.cards, &Card{
-		X: 100, Y: 400, Width: 220, Height: 140, Color: color.RGBA{60, 179, 113, 255}, Title: "Output Plot",
-		Inputs: []Port{{Name: "data", Type: "any"}},
+		ID: NewID(),
+		X:  50, Y: 50, Width: 200, Height: 120, Color: color.RGBA{100, 149, 237, 255}, Title: "Text Card",
+		Text:    "Hello World",
+		Inputs:  []Port{{Name: "text", Type: "string"}},
+		Outputs: []Port{{Name: "text", Type: "string"}},
 	})
 
-	// Add String:find_replace block
 	g.cards = append(g.cards, &Card{
+		ID:     NewID(),
 		Title:  "String:find_replace",
 		X:      500,
 		Y:      50,
@@ -93,6 +90,7 @@ func (g *Game) DeleteCard(c *Card) {
 
 func (g *Game) DuplicateCard(c *Card) {
 	newCard := &Card{
+		ID:     NewID(),
 		X:      c.X + DuplicateOffset,
 		Y:      c.Y + DuplicateOffset,
 		Width:  c.Width,
@@ -134,6 +132,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	wx, wy := g.screenToWorld(float64(mx), float64(my))
 	hoveredCard := g.getCardAt(wx, wy)
 
+	// Draw Arrows (Connections)
+	for _, arrow := range g.arrows {
+		arrow.Draw(screen, g, cw, ch)
+	}
+
+	g.drawTemporaryArrow(screen, cw, ch)
+
 	for _, card := range g.cards {
 		card.Draw(screen, g, cw, ch, card == hoveredCard)
 	}
@@ -173,8 +178,54 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
+func (g *Game) drawTemporaryArrow(screen *ebiten.Image, cw, ch float64) {
+	if !g.input.draggingArrow {
+		return
+	}
+
+	startCard := g.input.dragStartCard
+	if startCard == nil {
+		return
+	}
+
+	// Get start position
+	x1, y1 := startCard.GetOutputPortPosition(g.input.dragStartPort)
+	sx1, sy1 := g.camera.WorldToScreen(x1, y1, cw, ch)
+
+	// Get end position (current mouse position)
+	mx, my := ebiten.CursorPosition()
+	sx2, sy2 := float64(mx), float64(my)
+
+	// Draw the line
+	ebitenutil.DrawLine(screen, sx1, sy1, sx2, sy2, color.RGBA{255, 255, 255, 255})
+}
+
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	g.screenWidth = outsideWidth
 	g.screenHeight = outsideHeight
 	return outsideWidth, outsideHeight
+}
+
+func (g *Game) getCardByID(id string) *Card {
+	for _, c := range g.cards {
+		if c.ID == id {
+			return c
+		}
+	}
+	return nil
+}
+
+func (g *Game) screenToWorld(sx, sy float64) (float64, float64) {
+	cw := float64(g.screenWidth) / 2
+	ch := float64(g.screenHeight) / 2
+	return g.camera.ScreenToWorld(sx, sy, cw, ch)
+}
+
+func (g *Game) IsInputPortConnected(cardID string, portName string) bool {
+	for _, arrow := range g.arrows {
+		if arrow.ToCardID == cardID && arrow.ToPort == portName {
+			return true
+		}
+	}
+	return false
 }

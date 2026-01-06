@@ -19,6 +19,7 @@ type Port struct {
 
 // Card represents a node on the canvas
 type Card struct {
+	ID            string
 	X, Y          float64
 	Width, Height float64
 	Color         color.Color
@@ -32,6 +33,7 @@ type Card struct {
 
 func (g *Game) AddTextCard(x, y float64) *Card {
 	card := &Card{
+		ID:     NewID(),
 		X:      math.Round(x/SnapGridLarge) * SnapGridLarge,
 		Y:      math.Round(y/SnapGridLarge) * SnapGridLarge,
 		Width:  DefaultCardWidth,
@@ -39,6 +41,9 @@ func (g *Game) AddTextCard(x, y float64) *Card {
 		Color:  ColorCardDefault,
 		Title:  "Text Card",
 		Text:   "",
+		Inputs: []Port{
+			{Name: "text", Type: "string"},
+		},
 		Outputs: []Port{
 			{Name: "text", Type: "string"},
 		},
@@ -179,12 +184,26 @@ func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx,
 }
 
 func (c *Card) drawContent(screen *ebiten.Image, g *Game, sx, sy, headerHeight float64) {
-	textContent := c.Text
-	if c.IsEditing {
-		if (time.Now().UnixMilli()/CursorBlinkRate)%2 == 0 {
-			textContent += "|"
+	var textContent string
+
+	// Special handling for TextCard
+	if c.Title == "Text Card" {
+		isPortConnected := g.IsInputPortConnected(c.ID, "text")
+		if isPortConnected {
+			// Later, this will show the actual input value from the execution engine
+			textContent = "[Connected]"
+		} else {
+			textContent = c.Text
+			if c.IsEditing {
+				if (time.Now().UnixMilli()/CursorBlinkRate)%2 == 0 {
+					textContent += "|"
+				}
+			}
 		}
+	} else {
+		textContent = c.Text
 	}
+
 	ebitenutil.DebugPrintAt(screen, textContent, int(sx+10), int(sy+headerHeight+10))
 }
 
@@ -254,4 +273,81 @@ func (c *Card) GetCornerAt(wx, wy, zoom float64) int {
 		}
 	}
 	return -1
+}
+
+func (c *Card) GetInputPortPosition(name string) (float64, float64) {
+	index := -1
+	for i, p := range c.Inputs {
+		if p.Name == name {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return c.X, c.Y // Fallback
+	}
+
+	headerHeight := HeaderHeight
+	footerHeight := 0.0
+	if len(c.Outputs) > 0 {
+		footerHeight = FooterHeight
+	}
+	usableHeight := c.Height - headerHeight - footerHeight
+	ySpacing := usableHeight / float64(len(c.Inputs)+1)
+	py := c.Y + headerHeight + ySpacing*float64(index+1)
+	return c.X, py
+}
+
+func (c *Card) GetOutputPortPosition(name string) (float64, float64) {
+	index := -1
+	for i, p := range c.Outputs {
+		if p.Name == name {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return c.X + c.Width, c.Y + c.Height // Fallback
+	}
+
+	xSpacing := c.Width / float64(len(c.Outputs)+1)
+	px := c.X + xSpacing*float64(index+1)
+	return px, c.Y + c.Height
+}
+
+// PortInfo contains info about a hit port
+type PortInfo struct {
+	Name    string
+	IsInput bool
+	Type    string
+}
+
+func (c *Card) GetPortAt(wx, wy, zoom float64) *PortInfo {
+	// portSizeWorld := PortSize // / zoom? No, PortSize is screen size constant?
+	// constants are in pixels probably.
+	// Wait, PortSize is 10.
+
+	hitThreshold := CornerThreshold / zoom // Use same threshold metric logic as corners
+
+	// Check Inputs
+	for _, p := range c.Inputs {
+		px, py := c.GetInputPortPosition(p.Name)
+		dx := wx - px
+		dy := wy - py
+		if math.Sqrt(dx*dx+dy*dy) < hitThreshold {
+			return &PortInfo{Name: p.Name, IsInput: true, Type: p.Type}
+		}
+	}
+
+	// Check Outputs
+	for _, p := range c.Outputs {
+		px, py := c.GetOutputPortPosition(p.Name)
+		dx := wx - px
+		dy := wy - py
+		if math.Sqrt(dx*dx+dy*dy) < hitThreshold {
+			return &PortInfo{Name: p.Name, IsInput: false, Type: p.Type}
+		}
+	}
+
+	return nil
 }
