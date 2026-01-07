@@ -211,8 +211,10 @@ func (c *Card) drawContent(screen *ebiten.Image, g *Game, sx, sy, headerHeight f
 
 	zoom := g.camera.Zoom
 	paddingX := CardPaddingX * zoom
+	// Port panel is 1/3 of card width
+	portPanelWidth := (c.Width / 3.0) * zoom
 	paddingY := CardPaddingY * zoom
-	ebitenutil.DebugPrintAt(screen, textContent, int(sx+paddingX), int(sy+headerHeight+paddingY))
+	ebitenutil.DebugPrintAt(screen, textContent, int(sx+portPanelWidth+paddingX), int(sy+headerHeight+paddingY))
 }
 
 func (c *Card) drawDividers(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHeight, footerHeight float64, cw, ch float64) {
@@ -222,6 +224,14 @@ func (c *Card) drawDividers(screen *ebiten.Image, g *Game, sx, sy, sw, sh, heade
 	shx1, shy := g.camera.WorldToScreen(c.X, hy, cw, ch)
 	shx2, _ := g.camera.WorldToScreen(c.X+c.Width, hy, cw, ch)
 	vector.StrokeLine(screen, float32(shx1), float32(shy), float32(shx2), float32(shy), 1, color, false)
+
+	// Port Panel Divider (at 1/3 of card width)
+	if len(c.Inputs) > 0 {
+		portPanelWidth := c.Width / 3.0
+		svx, svy1 := g.camera.WorldToScreen(c.X+portPanelWidth, c.Y+HeaderHeight, cw, ch)
+		_, svy2 := g.camera.WorldToScreen(c.X+portPanelWidth, c.Y+c.Height-footerHeight, cw, ch)
+		vector.StrokeLine(screen, float32(svx), float32(svy1), float32(svx), float32(svy2), 1, color, false)
+	}
 
 	// Footer divider
 	if footerHeight > 0 {
@@ -236,7 +246,7 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 	zoom := g.camera.Zoom
 	portSize := PortSize * zoom
 
-	// Inputs (Left)
+	// Inputs (Left) - positioned on left edge
 	if len(c.Inputs) > 0 {
 		usableHeight := c.Height - headerHeight - footerHeight
 		ySpacing := usableHeight / float64(len(c.Inputs)+1)
@@ -334,6 +344,7 @@ func (c *Card) GetInputPortPosition(name string) (float64, float64) {
 	usableHeight := c.Height - headerHeight - footerHeight
 	ySpacing := usableHeight / float64(len(c.Inputs)+1)
 	py := c.Y + headerHeight + ySpacing*float64(index+1)
+	// Ports positioned exactly on left edge
 	return c.X, py
 }
 

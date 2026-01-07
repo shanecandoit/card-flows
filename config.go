@@ -37,6 +37,7 @@ const (
 	CardActionButtonWidth  = 30.0
 	CardActionButtonHeight = 20.0
 	DuplicateOffset        = 20.0
+	// PortPanelWidth is now calculated as 1/3 of card width (not a constant)
 
 	// --- Input ---
 	DoubleClickThreshold = 500 // ms
