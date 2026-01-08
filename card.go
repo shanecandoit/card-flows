@@ -289,6 +289,12 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 	zoom := g.camera.Zoom
 	portSize := PortSize * zoom
 
+	// Determine if this card is hovered or selected
+	mx, my := ebiten.CursorPosition()
+	wx, wy := g.camera.ScreenToWorld(float64(mx), float64(my), cw, ch)
+	hovered := wx >= c.X && wx < c.X+c.Width && wy >= c.Y && wy < c.Y+c.Height
+	selected := (c == g.input.activeCard)
+
 	// Inputs (Left) - positioned on left edge
 	if len(c.Inputs) > 0 {
 		usableHeight := c.Height - headerHeight - footerHeight
@@ -300,6 +306,14 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 			// Determine port color
 			portColor := ColorPortBody
 			dotColor := ColorPortDot
+
+			// Reduce contrast for inactive/unhovered cards
+			if !selected && !hovered {
+				portColor = ColorPortBodyDim
+				dotColor = ColorPortDotDim
+			}
+
+			// Hovering a specific port overrides dimming
 			if g.input.hoveredPortCard == c && g.input.hoveredPortInfo != nil &&
 				g.input.hoveredPortInfo.IsInput && g.input.hoveredPortInfo.Name == port.Name {
 				portColor = ColorPortHover
@@ -315,7 +329,15 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 			}
 
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
-			DrawTextLines(screen, g.FontFace, label, int(spx+portSize), int(spy-8*zoom), color.White)
+			// Choose label color: bright when hovered/selected/active, dim otherwise
+			labelColor := ColorPortLabelDim
+			if selected || hovered {
+				labelColor = ColorPortLabel
+			}
+			if portColor == ColorPortHover || portColor == ColorPortActive {
+				labelColor = color.RGBA{255, 255, 255, 255}
+			}
+			DrawTextLines(screen, g.FontFace, label, int(spx+portSize), int(spy-8*zoom), labelColor)
 		}
 	}
 
@@ -329,6 +351,13 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 			// Determine port color
 			portColor := ColorPortBody
 			dotColor := ColorPortDot
+
+			// Reduce contrast for inactive/unhovered cards
+			if !selected && !hovered {
+				portColor = ColorPortBodyDim
+				dotColor = ColorPortDotDim
+			}
+
 			if g.input.dragStartCard == c && g.input.dragStartPort == port.Name {
 				portColor = ColorPortActive
 				dotColor = ColorPortActive
@@ -343,7 +372,14 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 			}
 
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
-			DrawTextLines(screen, g.FontFace, label, int(spx-20*zoom), int(spy-20*zoom), color.White)
+			labelColor := ColorPortLabelDim
+			if selected || hovered {
+				labelColor = ColorPortLabel
+			}
+			if portColor == ColorPortActive {
+				labelColor = color.RGBA{255, 255, 255, 255}
+			}
+			DrawTextLines(screen, g.FontFace, label, int(spx-20*zoom), int(spy-20*zoom), labelColor)
 		}
 	}
 }

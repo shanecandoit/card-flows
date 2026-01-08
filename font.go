@@ -24,7 +24,7 @@ func LoadUIFont() font.Face {
 		log.Println("LoadUIFont: parse error, using basic font:", err)
 		return basicfont.Face7x13
 	}
-	face, err := opentype.NewFace(f, &opentype.FaceOptions{Size: 14, DPI: 72, Hinting: font.HintingFull})
+	face, err := opentype.NewFace(f, &opentype.FaceOptions{Size: 16, DPI: 72, Hinting: font.HintingFull})
 	if err != nil {
 		log.Println("LoadUIFont: new face error, using basic font:", err)
 		return basicfont.Face7x13
@@ -38,14 +38,20 @@ func DrawTextLines(screen *ebiten.Image, face font.Face, s string, x, y int, clr
 		face = basicfont.Face7x13
 	}
 	lines := splitLines(s)
-	// compute line height from metrics
+	// compute line height and baseline offset from metrics
 	metrics := face.Metrics()
-	lineHeight := int((metrics.Ascent + metrics.Descent) >> 6)
+	ascent := int(metrics.Ascent >> 6)
+	descent := int(metrics.Descent >> 6)
+	lineHeight := ascent + descent
 	if lineHeight <= 0 {
-		lineHeight = 14
+		lineHeight = 16
+		ascent = 12
 	}
+	// Treat provided y as the top of the first line. text.Draw expects baseline y,
+	// so shift by ascent.
+	baseY := y + ascent
 	for i, line := range lines {
-		text.Draw(screen, line, face, x, y+(i*lineHeight), clr)
+		text.Draw(screen, line, face, x, baseY+(i*lineHeight), clr)
 	}
 }
 

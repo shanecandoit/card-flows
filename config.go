@@ -53,17 +53,22 @@ const (
 
 var (
 	// --- Colors ---
-	ColorBackground          = color.RGBA{30, 30, 35, 255}
-	ColorGrid                = color.RGBA{32, 32, 10, 10}
-	ColorGridBlocked         = color.RGBA{20, 20, 25, 255}
-	ColorOriginCross         = color.RGBA{255, 100, 100, 150}
-	ColorShadow              = color.RGBA{0, 0, 0, 100}
-	ColorCardDefault         = color.RGBA{45, 45, 50, 255}
-	ColorCardHover           = color.RGBA{0, 120, 255, 255}
-	ColorCardActive          = color.RGBA{50, 205, 50, 255}
-	ColorCardHot             = color.RGBA{255, 140, 0, 255}
-	ColorPortBody            = color.RGBA{150, 150, 150, 255}
-	ColorPortDot             = color.RGBA{0, 0, 0, 255}
+	ColorBackground  = color.RGBA{30, 30, 35, 255}
+	ColorGrid        = color.RGBA{32, 32, 10, 10}
+	ColorGridBlocked = color.RGBA{20, 20, 25, 255}
+	ColorOriginCross = color.RGBA{255, 100, 100, 150}
+	ColorShadow      = color.RGBA{0, 0, 0, 100}
+	ColorCardDefault = color.RGBA{45, 45, 50, 255}
+	ColorCardHover   = color.RGBA{0, 120, 255, 255}
+	ColorCardActive  = color.RGBA{50, 205, 50, 255}
+	ColorCardHot     = color.RGBA{255, 140, 0, 255}
+	ColorPortBody    = color.RGBA{150, 150, 150, 255}
+	ColorPortBodyDim = color.RGBA{110, 110, 110, 180}
+	ColorPortDot     = color.RGBA{0, 0, 0, 255}
+	// Port label colors
+	ColorPortLabel           = color.RGBA{220, 220, 220, 255}
+	ColorPortLabelDim        = color.RGBA{150, 150, 150, 160}
+	ColorPortDotDim          = color.RGBA{0, 0, 0, 120}
 	ColorDivider             = color.RGBA{0, 0, 0, 50}
 	ColorCornerHandle        = color.RGBA{255, 255, 255, 200}
 	ColorButtonBackground    = color.RGBA{60, 60, 70, 200}
