@@ -253,3 +253,76 @@ func (g *Game) IsInputPortConnected(cardID string, portName string) bool {
 	}
 	return false
 }
+
+// RegisterSubscription adds a subscription when an arrow is created
+func (g *Game) RegisterSubscription(sourceCardID, targetCardID, targetPort string) {
+	sourceCard := g.getCardByID(sourceCardID)
+	if sourceCard == nil {
+		return
+	}
+
+	// Check if already subscribed
+	for _, sub := range sourceCard.Subscribers {
+		if sub.CardID == targetCardID && sub.Port == targetPort {
+			return // Already subscribed
+		}
+	}
+
+	sourceCard.Subscribers = append(sourceCard.Subscribers, Subscription{
+		CardID: targetCardID,
+		Port:   targetPort,
+	})
+}
+
+// UnregisterSubscription removes a subscription when an arrow is deleted
+func (g *Game) UnregisterSubscription(sourceCardID, targetCardID, targetPort string) {
+	sourceCard := g.getCardByID(sourceCardID)
+	if sourceCard == nil {
+		return
+	}
+
+	// Remove the subscription
+	filtered := sourceCard.Subscribers[:0]
+	for _, sub := range sourceCard.Subscribers {
+		if sub.CardID != targetCardID || sub.Port != targetPort {
+			filtered = append(filtered, sub)
+		}
+	}
+	sourceCard.Subscribers = filtered
+}
+
+// PropagateText sends this card's text to all subscribers
+func (g *Game) PropagateText(sourceCard *Card) {
+	for _, sub := range sourceCard.Subscribers {
+		targetCard := g.getCardByID(sub.CardID)
+		if targetCard != nil {
+			// For now, directly update the text
+			// In the future, this might go through the execution engine
+			targetCard.Text = sourceCard.Text
+
+			// Recursively propagate if the target card also has subscribers
+			g.PropagateText(targetCard)
+		}
+	}
+}
+
+// GetInputValue returns the value for an input port
+// If connected, returns the source card's text; otherwise returns the card's own text
+func (g *Game) GetInputValue(cardID, portName string) string {
+	// Find if there's an arrow connected to this input
+	for _, arrow := range g.arrows {
+		if arrow.ToCardID == cardID && arrow.ToPort == portName {
+			sourceCard := g.getCardByID(arrow.FromCardID)
+			if sourceCard != nil {
+				return sourceCard.Text
+			}
+		}
+	}
+
+	// No connection, return the card's own text
+	card := g.getCardByID(cardID)
+	if card != nil {
+		return card.Text
+	}
+	return ""
+}

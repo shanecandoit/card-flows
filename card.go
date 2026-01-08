@@ -17,6 +17,12 @@ type Port struct {
 	Type string
 }
 
+// Subscription represents a card subscribing to this card's output
+type Subscription struct {
+	CardID string
+	Port   string
+}
+
 // Card represents a node on the canvas
 type Card struct {
 	ID            string
@@ -29,6 +35,7 @@ type Card struct {
 	IsCommit      bool
 	Inputs        []Port
 	Outputs       []Port
+	Subscribers   []Subscription // Cards subscribed to this card's output
 }
 
 func (g *Game) AddTextCard(x, y float64) *Card {
@@ -195,14 +202,16 @@ func (c *Card) drawContent(screen *ebiten.Image, g *Game, sx, sy, headerHeight f
 	if c.Title == "Text Card" {
 		isPortConnected := g.IsInputPortConnected(c.ID, "text")
 		if isPortConnected {
-			// Later, this will show the actual input value from the execution engine
-			textContent = "[Connected]"
+			// Get the actual input value from the connected source
+			textContent = g.GetInputValue(c.ID, "text")
 		} else {
 			textContent = c.Text
-			if c.IsEditing {
-				if (time.Now().UnixMilli()/CursorBlinkRate)%2 == 0 {
-					textContent += "|"
-				}
+		}
+
+		// Show cursor if editing
+		if c.IsEditing {
+			if (time.Now().UnixMilli()/CursorBlinkRate)%2 == 0 {
+				textContent += "|"
 			}
 		}
 	} else {

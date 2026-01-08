@@ -130,12 +130,17 @@ func (is *InputSystem) handleTextEditing(wx, wy float64) bool {
 		is.editingCard.Text = is.editingCard.Text[:len(is.editingCard.Text)-1]
 	}
 
+	// Propagate text changes to subscribers in real-time
+	g.PropagateText(is.editingCard)
+
 	// Handle Enter or Click Outside to Commit
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
 		(inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && g.getCardAt(wx, wy) != is.editingCard) {
 
 		is.editingCard.IsEditing = false
 		is.editingCard.IsCommit = true
+		// Final propagation on commit
+		g.PropagateText(is.editingCard)
 		is.editingCard = nil
 		return true
 	}
@@ -452,6 +457,8 @@ func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
 				if arrow.ToCardID == targetCard.ID && arrow.ToPort == targetPort.Name {
 					removedCount++
 					fmt.Printf("Removing existing arrow to %s:%s\n", targetCard.Title, targetPort.Name)
+					// Unregister subscription before removing
+					g.UnregisterSubscription(arrow.FromCardID, arrow.ToCardID, arrow.ToPort)
 					continue // Skip (delete) this arrow
 				}
 				filteredArrows = append(filteredArrows, arrow)
@@ -467,6 +474,12 @@ func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
 				Color:      ColorArrowDefault,
 			}
 			g.arrows = append(g.arrows, newArrow)
+
+			// Register subscription for pub-sub
+			g.RegisterSubscription(is.dragStartCard.ID, targetCard.ID, targetPort.Name)
+
+			// Immediately propagate text if source card has text
+			g.PropagateText(is.dragStartCard)
 
 			fmt.Printf("Connected %s (%s) -> %s (%s). Total Arrows: %d\n",
 				is.dragStartCard.Title, is.dragStartPort,
