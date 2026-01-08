@@ -11,6 +11,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"golang.org/x/image/font"
 )
 
 type Game struct {
@@ -26,6 +27,7 @@ type Game struct {
 	engine *Engine
 
 	screenshotRequested bool
+	FontFace            font.Face
 }
 
 func NewGame() *Game {
@@ -33,6 +35,8 @@ func NewGame() *Game {
 		camera: Camera{X: DefaultCameraX, Y: DefaultCameraY, Zoom: DefaultCameraZoom},
 		cards:  []*Card{},
 	}
+
+	g.FontFace = LoadUIFont()
 
 	g.input = NewInputSystem(g)
 	g.ui = NewUISystem(g)
@@ -167,7 +171,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		hoverStatus = hoveredCard.Title
 	}
 
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf(
+	DrawTextLines(screen, g.FontFace, fmt.Sprintf(
 		"Camera: (%.1f, %.1f) Zoom: %.2f\n"+
 			"Mouse World: (%.1f, %.1f)\n"+
 			"Hovering: %s\n"+
@@ -176,11 +180,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.camera.X, g.camera.Y, g.camera.Zoom,
 		wx, wy,
 		hoverStatus,
-	), 10, 10)
+	), 10, 10, color.White)
 
 	// Print card IDs for debugging
 	if hoveredCard != nil {
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("ID: %s", hoveredCard.ID), 10, 100)
+		DrawTextLines(screen, g.FontFace, fmt.Sprintf("ID: %s", hoveredCard.ID), 10, 100, color.White)
 	}
 
 	g.ui.Draw(screen)

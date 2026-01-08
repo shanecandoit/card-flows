@@ -1,8 +1,9 @@
 package main
 
 import (
+	"image/color"
+
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -19,10 +20,13 @@ func (b *Button) IsMouseOver(mx, my int) bool {
 		float32(my) >= b.Y && float32(my) <= b.Y+b.H
 }
 
-func (b *Button) Draw(screen *ebiten.Image) {
+func (b *Button) Draw(screen *ebiten.Image, ui *UISystem) {
 	buttonColor := ColorButtonBackground
 	vector.DrawFilledRect(screen, b.X, b.Y, b.W, b.H, buttonColor, false)
-	ebitenutil.DebugPrintAt(screen, b.Label, int(b.X)+10, int(b.Y)+8)
+	// draw label using game's font
+	if ui != nil && ui.game != nil {
+		DrawTextLines(screen, ui.game.FontFace, b.Label, int(b.X)+10, int(b.Y)+12, color.White)
+	}
 }
 
 type UISystem struct {
@@ -100,6 +104,6 @@ func (ui *UISystem) Update() {
 func (ui *UISystem) Draw(screen *ebiten.Image) {
 	ui.updateButtonPositions()
 	for _, b := range ui.buttons {
-		b.Draw(screen)
+		b.Draw(screen, ui)
 	}
 }

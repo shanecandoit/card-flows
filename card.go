@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -191,7 +190,7 @@ func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx,
 	} else {
 		msg = c.Title
 	}
-	ebitenutil.DebugPrintAt(screen, msg, int(sx+CardPaddingX*g.camera.Zoom), int(sy+CardPaddingY*g.camera.Zoom))
+	DrawTextLines(screen, g.FontFace, msg, int(sx+CardPaddingX*g.camera.Zoom), int(sy+CardPaddingY*g.camera.Zoom)+2, color.White)
 
 	// Buttons
 	zoom := g.camera.Zoom
@@ -212,7 +211,7 @@ func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx,
 		xColor.A = 200
 	}
 	vector.DrawFilledRect(screen, float32(xBtnX), float32(xBtnY), float32(btnW), float32(btnH), xColor, false)
-	ebitenutil.DebugPrintAt(screen, "X", int(xBtnX+btnW/2-4), int(xBtnY+btnH/2-8))
+	DrawTextLines(screen, g.FontFace, "X", int(xBtnX+btnW/2-4), int(xBtnY+btnH/2-8), color.White)
 
 	// ++ (Duplicate)
 	dBtnX := xBtnX - btnW - btnMargin
@@ -227,7 +226,7 @@ func (c *Card) drawHeader(screen *ebiten.Image, g *Game, sx, sy, sw float64, wx,
 		dColor.A = 200
 	}
 	vector.DrawFilledRect(screen, float32(dBtnX), float32(dBtnY), float32(btnW), float32(btnH), dColor, false)
-	ebitenutil.DebugPrintAt(screen, "++", int(dBtnX+btnW/2-6), int(dBtnY+btnH/2-8))
+	DrawTextLines(screen, g.FontFace, "++", int(dBtnX+btnW/2-6), int(dBtnY+btnH/2-8), color.White)
 }
 
 func (c *Card) drawContent(screen *ebiten.Image, g *Game, sx, sy, headerHeight float64) {
@@ -258,7 +257,7 @@ func (c *Card) drawContent(screen *ebiten.Image, g *Game, sx, sy, headerHeight f
 	// Port panel is 1/3 of card width
 	portPanelWidth := (c.Width / 3.0) * zoom
 	paddingY := CardPaddingY * zoom
-	ebitenutil.DebugPrintAt(screen, textContent, int(sx+portPanelWidth+paddingX), int(sy+headerHeight+paddingY))
+	DrawTextLines(screen, g.FontFace, textContent, int(sx+portPanelWidth+paddingX), int(sy+headerHeight+paddingY), color.White)
 }
 
 func (c *Card) drawDividers(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHeight, footerHeight float64, cw, ch float64) {
@@ -316,7 +315,7 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 			}
 
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
-			ebitenutil.DebugPrintAt(screen, label, int(spx+portSize), int(spy-8*zoom))
+			DrawTextLines(screen, g.FontFace, label, int(spx+portSize), int(spy-8*zoom), color.White)
 		}
 	}
 
@@ -344,7 +343,7 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 			}
 
 			label := fmt.Sprintf("%s:%s", port.Name, port.Type)
-			ebitenutil.DebugPrintAt(screen, label, int(spx-20*zoom), int(spy-20*zoom))
+			DrawTextLines(screen, g.FontFace, label, int(spx-20*zoom), int(spy-20*zoom), color.White)
 		}
 	}
 }
