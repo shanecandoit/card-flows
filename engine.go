@@ -189,8 +189,8 @@ func (e *Engine) executeCard(c *Card) {
 	// 5. Log execution result
 	fmt.Printf("[%s] Result: %v\n", c.Title, result)
 
-	// 6. Success color
-	c.Color = color.RGBA{50, 205, 50, 255}
+	// 6. Success flash (200ms)
+	c.LastSuccessFlash = time.Now()
 
 	// 7. Store in cache
 	e.ExecutionCache[c.ID] = CacheEntry{

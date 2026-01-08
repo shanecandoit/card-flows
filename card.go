@@ -25,17 +25,18 @@ type Subscription struct {
 
 // Card represents a node on the canvas
 type Card struct {
-	ID            string
-	X, Y          float64
-	Width, Height float64
-	Color         color.Color
-	Title         string
-	Text          string
-	IsEditing     bool
-	IsCommit      bool
-	Inputs        []Port
-	Outputs       []Port
-	Subscribers   []Subscription // Cards subscribed to this card's output
+	ID               string
+	X, Y             float64
+	Width, Height    float64
+	Color            color.Color
+	Title            string
+	Text             string
+	IsEditing        bool
+	IsCommit         bool
+	Inputs           []Port
+	Outputs          []Port
+	Subscribers      []Subscription // Cards subscribed to this card's output
+	LastSuccessFlash time.Time      // When the last success flash occurred
 }
 
 func (g *Game) AddTextCard(x, y float64) *Card {
@@ -110,8 +111,13 @@ func (c *Card) drawBody(screen *ebiten.Image, g *Game, sx, sy, sw, sh float64) {
 	// Shadow
 	zoom := g.camera.Zoom
 	vector.DrawFilledRect(screen, float32(sx+ShadowOffset*zoom), float32(sy+ShadowOffset*zoom), float32(sw), float32(sh), ColorShadow, false)
-	// Body
-	vector.DrawFilledRect(screen, float32(sx), float32(sy), float32(sw), float32(sh), c.Color, false)
+
+	// Body color with success flash (200ms)
+	bodyColor := c.Color
+	if time.Since(c.LastSuccessFlash) < 200*time.Millisecond {
+		bodyColor = color.RGBA{50, 205, 50, 255} // Success green
+	}
+	vector.DrawFilledRect(screen, float32(sx), float32(sy), float32(sw), float32(sh), bodyColor, false)
 }
 
 func (c *Card) drawSelectionBorder(screen *ebiten.Image, g *Game, hovered bool, sx, sy, sw, sh float64) {
