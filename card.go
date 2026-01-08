@@ -59,6 +59,29 @@ func (g *Game) AddTextCard(x, y float64) *Card {
 	return card
 }
 
+func (g *Game) AddFindReplaceCard(x, y float64) *Card {
+	card := &Card{
+		ID:     NewID(),
+		X:      math.Round(x/SnapGridLarge) * SnapGridLarge,
+		Y:      math.Round(y/SnapGridLarge) * SnapGridLarge,
+		Width:  DefaultCardWidth,
+		Height: DefaultCardHeight * 1.5, // Taller for 3 inputs
+		Color:  ColorCardDefault,
+		Title:  "String:find_replace",
+		Text:   "",
+		Inputs: []Port{
+			{Name: "input", Type: "string"},
+			{Name: "find", Type: "string"},
+			{Name: "replace", Type: "string"},
+		},
+		Outputs: []Port{
+			{Name: "result", Type: "string"},
+		},
+	}
+	g.cards = append(g.cards, card)
+	return card
+}
+
 func (c *Card) Draw(screen *ebiten.Image, g *Game, cw, ch float64, hovered bool) {
 	sx, sy := g.camera.WorldToScreen(c.X, c.Y, cw, ch)
 	sw := c.Width * g.camera.Zoom

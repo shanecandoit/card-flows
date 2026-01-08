@@ -141,6 +141,8 @@ func (is *InputSystem) handleTextEditing(wx, wy float64) bool {
 		is.editingCard.IsCommit = true
 		// Final propagation on commit
 		g.PropagateText(is.editingCard)
+		// Trigger execution after editing completes
+		g.engine.Run()
 		is.editingCard = nil
 		return true
 	}
@@ -480,6 +482,9 @@ func (is *InputSystem) handleWiring(mx, my int, wx, wy float64) {
 
 			// Immediately propagate text if source card has text
 			g.PropagateText(is.dragStartCard)
+
+			// Trigger execution for the new connection
+			g.engine.Run()
 
 			fmt.Printf("Connected %s (%s) -> %s (%s). Total Arrows: %d\n",
 				is.dragStartCard.Title, is.dragStartPort,
