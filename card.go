@@ -26,6 +26,7 @@ type Subscription struct {
 // Card represents a node on the canvas
 type Card struct {
 	ID               string
+	Type             string // Card type identifier (e.g., "text", "find_replace")
 	X, Y             float64
 	Width, Height    float64
 	Color            color.Color
@@ -37,11 +38,13 @@ type Card struct {
 	Outputs          []Port
 	Subscribers      []Subscription // Cards subscribed to this card's output
 	LastSuccessFlash time.Time      // When the last success flash occurred
+	LastErrorFlash   time.Time      // When the last error flash occurred
 }
 
 func (g *Game) AddTextCard(x, y float64) *Card {
 	card := &Card{
 		ID:     NewID(),
+		Type:   "text",
 		X:      math.Round(x/SnapGridLarge) * SnapGridLarge,
 		Y:      math.Round(y/SnapGridLarge) * SnapGridLarge,
 		Width:  DefaultCardWidth,
@@ -63,6 +66,7 @@ func (g *Game) AddTextCard(x, y float64) *Card {
 func (g *Game) AddFindReplaceCard(x, y float64) *Card {
 	card := &Card{
 		ID:     NewID(),
+		Type:   "find_replace",
 		X:      math.Round(x/SnapGridLarge) * SnapGridLarge,
 		Y:      math.Round(y/SnapGridLarge) * SnapGridLarge,
 		Width:  DefaultCardWidth,
@@ -112,10 +116,12 @@ func (c *Card) drawBody(screen *ebiten.Image, g *Game, sx, sy, sw, sh float64) {
 	zoom := g.camera.Zoom
 	vector.DrawFilledRect(screen, float32(sx+ShadowOffset*zoom), float32(sy+ShadowOffset*zoom), float32(sw), float32(sh), ColorShadow, false)
 
-	// Body color with success flash (200ms)
+	// Body color with flash feedback (200ms)
 	bodyColor := c.Color
 	if time.Since(c.LastSuccessFlash) < 200*time.Millisecond {
 		bodyColor = color.RGBA{50, 205, 50, 255} // Success green
+	} else if time.Since(c.LastErrorFlash) < 200*time.Millisecond {
+		bodyColor = color.RGBA{255, 100, 100, 255} // Error red
 	}
 	vector.DrawFilledRect(screen, float32(sx), float32(sy), float32(sw), float32(sh), bodyColor, false)
 }

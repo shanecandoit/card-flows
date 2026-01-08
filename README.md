@@ -29,3 +29,9 @@ go run main.go
 ## Screenshot
 
 ![Screenshot](screenshot.png)
+
+## License
+
+AGPL-3.0
+
+Enjoy!

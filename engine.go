@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"image/color"
 	"sort"
 	"strings"
 	"time"
@@ -173,7 +172,7 @@ func (e *Engine) executeCard(c *Card) {
 	var result interface{}
 	var err error
 
-	if strings.HasPrefix(c.Title, "Text Card") {
+	if c.Type == "text" {
 		// Text cards just output their text
 		result = c.Text
 	} else {
@@ -181,7 +180,7 @@ func (e *Engine) executeCard(c *Card) {
 		result, err = e.executeStarlark(c, inputs)
 		if err != nil {
 			fmt.Printf("[%s] Execution error: %v\n", c.Title, err)
-			c.Color = color.RGBA{255, 100, 100, 255} // Error Red
+			c.LastErrorFlash = time.Now()
 			return
 		}
 	}
@@ -224,7 +223,7 @@ func (e *Engine) executeStarlark(c *Card, inputs map[string]interface{}) (interf
 	globals := starlark.StringDict{}
 
 	// For find_replace cards, ensure all inputs have defaults
-	if c.Title == "String:find_replace" {
+	if c.Type == "find_replace" {
 		if _, ok := inputs["input"]; !ok {
 			inputs["input"] = ""
 		}
@@ -267,23 +266,17 @@ func (e *Engine) executeStarlark(c *Card, inputs map[string]interface{}) (interf
 }
 
 func (e *Engine) getCardScript(c *Card) string {
-	// Handle text cards (with or without ID suffix)
-	if strings.HasPrefix(c.Title, "Text Card") {
+	if c.Type == "text" {
 		// Pass through or literal text
 		// If 'text' input is connected, it passes through.
 		// Else it uses c.Text
-		// For now, let's say it outputs 'text' port.
-		// If we have an input named 'text', pass it through.
 		return `
 if "text" not in locals():
     text = "` + c.Text + `"
 ` // If input 'text' exists (in globals), this script does nothing, preserving it.
-		// Actually globals are pre-populated.
-		// If 'text' is in globals, we are good.
-		// If not, we define it from c.Text.
 	}
 
-	if c.Title == "String:find_replace" {
+	if c.Type == "find_replace" {
 		return `
 # Perform find and replace operation
 result = input.replace(find, replace) if input and find else input

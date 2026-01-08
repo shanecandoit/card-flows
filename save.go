@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +22,7 @@ type PortState struct {
 
 type CardState struct {
 	ID      string      `yaml:"id"`
+	Type    string      `yaml:"type"`
 	X       float64     `yaml:"x"`
 	Y       float64     `yaml:"y"`
 	Width   float64     `yaml:"width"`
@@ -64,6 +66,7 @@ func SaveState(g *Game, filename string) error {
 		r, g_val, b, a := c.Color.RGBA()
 		cardState := CardState{
 			ID:     c.ID,
+			Type:   c.Type,
 			X:      c.X,
 			Y:      c.Y,
 			Width:  c.Width,
@@ -133,8 +136,20 @@ func LoadState(g *Game, filename string) error {
 		if id == "" {
 			id = NewID()
 		}
+
+		// Migration: Infer Type from Title if not set
+		cardType := cs.Type
+		if cardType == "" {
+			if strings.HasPrefix(cs.Title, "Text Card") {
+				cardType = "text"
+			} else if cs.Title == "String:find_replace" {
+				cardType = "find_replace"
+			}
+		}
+
 		card := &Card{
 			ID:     id,
+			Type:   cardType,
 			X:      cs.X,
 			Y:      cs.Y,
 			Width:  cs.Width,
