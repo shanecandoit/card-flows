@@ -25,15 +25,13 @@ func DrawBackgroundGrid(cam *Camera, screen *ebiten.Image, cw, ch float64, scree
 	// Vertical lines (wx >= 0)
 	for wx := startWx; wx < right; wx += gridSizeSmall {
 		sx, _ := cam.WorldToScreen(wx, 0, cw, ch)
-		_, syStart := cam.ScreenToWorld(0, 0, cw, ch)
-		vector.StrokeLine(screen, float32(sx), float32(math.Max(0, syStart)), float32(sx), float32(screenHeight), 1, gridColor, false)
+		vector.StrokeLine(screen, float32(sx), 0, float32(sx), float32(screenHeight), 1, gridColor, false)
 	}
 
 	// Horizontal lines (wy >= 0)
 	for wy := startWy; wy < bottom; wy += gridSizeSmall {
 		_, sy := cam.WorldToScreen(0, wy, cw, ch)
-		sxStart, _ := cam.ScreenToWorld(0, 0, cw, ch)
-		vector.StrokeLine(screen, float32(math.Max(0, sxStart)), float32(sy), float32(screenWidth), float32(sy), 1, gridColor, false)
+		vector.StrokeLine(screen, 0, float32(sy), float32(screenWidth), float32(sy), 1, gridColor, false)
 	}
 
 	originX, originY := cam.WorldToScreen(0, 0, cw, ch)

@@ -129,14 +129,14 @@ func (c *Card) drawSelectionBorder(screen *ebiten.Image, g *Game, hovered bool, 
 	borderColor := color.RGBA{0, 0, 0, 0}
 	showBorder := false
 
-	if c == g.input.activeCard {
+	if g.input.ActiveCard != nil && c == g.input.ActiveCard.(*Card) {
 		showBorder = true
-		if g.input.isHot {
+		if g.input.IsHot {
 			borderColor = ColorCardHot
 		} else {
 			borderColor = ColorCardActive
 		}
-	} else if hovered && g.input.activeCard == nil {
+	} else if hovered && g.input.ActiveCard == nil {
 		showBorder = true
 		borderColor = ColorCardHover
 	}
@@ -155,12 +155,12 @@ func (c *Card) drawSelectionBorder(screen *ebiten.Image, g *Game, hovered bool, 
 }
 
 func (c *Card) drawResizeHandles(screen *ebiten.Image, g *Game, hovered bool, wx, wy float64, cw, ch float64) {
-	resizingThis := (c == g.input.resizingCard)
+	resizingThis := (g.input.ResizingCard != nil && c == g.input.ResizingCard.(*Card))
 	hCorner := c.GetCornerAt(wx, wy, g.camera.Zoom)
 	if (hovered && hCorner != -1) || resizingThis {
 		cIdx := hCorner
 		if resizingThis {
-			cIdx = g.input.resizingCorner
+			cIdx = g.input.ResizingCorner
 		}
 
 		var cx, cy float64
@@ -293,7 +293,7 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 	mx, my := ebiten.CursorPosition()
 	wx, wy := g.camera.ScreenToWorld(float64(mx), float64(my), cw, ch)
 	hovered := wx >= c.X && wx < c.X+c.Width && wy >= c.Y && wy < c.Y+c.Height
-	selected := (c == g.input.activeCard)
+	selected := (g.input.ActiveCard != nil && c == g.input.ActiveCard.(*Card))
 
 	// Inputs (Left) - positioned on left edge
 	if len(c.Inputs) > 0 {
@@ -314,8 +314,8 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 			}
 
 			// Hovering a specific port overrides dimming
-			if g.input.hoveredPortCard == c && g.input.hoveredPortInfo != nil &&
-				g.input.hoveredPortInfo.IsInput && g.input.hoveredPortInfo.Name == port.Name {
+			if g.input.HoveredPortCard != nil && g.input.HoveredPortCard.(*Card) == c && g.input.HoveredPortInfo != nil &&
+				g.input.HoveredPortInfo.IsInput && g.input.HoveredPortInfo.Name == port.Name {
 				portColor = ColorPortHover
 				dotColor = ColorPortHover
 			}
@@ -358,7 +358,7 @@ func (c *Card) drawPorts(screen *ebiten.Image, g *Game, sx, sy, sw, sh, headerHe
 				dotColor = ColorPortDotDim
 			}
 
-			if g.input.dragStartCard == c && g.input.dragStartPort == port.Name {
+			if g.input.DragStartCard != nil && g.input.DragStartCard.(*Card) == c && g.input.DragStartPort == port.Name {
 				portColor = ColorPortActive
 				dotColor = ColorPortActive
 			}

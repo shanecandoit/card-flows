@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"card-flows/canvas"
+	"card-flows/input"
 	"card-flows/ui"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -25,7 +26,7 @@ type Game struct {
 	screenHeight int
 
 	// Sub-systems
-	input  *InputSystem
+	input  *input.InputSystem
 	ui     *ui.UISystem
 	engine *Engine
 
@@ -41,7 +42,7 @@ func NewGame() *Game {
 
 	g.FontFace = LoadUIFont()
 
-	g.input = NewInputSystem(g)
+	g.input = input.NewInputSystem(g)
 	g.ui = ui.NewUISystem(
 		func() font.Face { return g.FontFace },
 		func() (int, int) { return g.screenWidth, g.screenHeight },
@@ -226,17 +227,22 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) drawTemporaryArrow(screen *ebiten.Image, cw, ch float64) {
-	if !g.input.draggingArrow {
+	if !g.input.DraggingArrow {
 		return
 	}
 
-	startCard := g.input.dragStartCard
-	if startCard == nil {
+	if g.input.DragStartCard == nil {
+		return
+	}
+
+	// startCard is an opaque handle; assert to *Card for drawing
+	startCard, ok := g.input.DragStartCard.(*Card)
+	if !ok || startCard == nil {
 		return
 	}
 
 	// Get start position
-	x1, y1 := startCard.GetOutputPortPosition(g.input.dragStartPort)
+	x1, y1 := startCard.GetOutputPortPosition(g.input.DragStartPort)
 	sx1, sy1 := g.camera.WorldToScreen(x1, y1, cw, ch)
 
 	// Get end position (current mouse position)
@@ -348,4 +354,138 @@ func (g *Game) GetInputValue(cardID, portName string) string {
 		return card.Text
 	}
 	return ""
+}
+
+// Host methods required by input.Host interface
+func (g *Game) ScreenToWorld(sx, sy float64) (float64, float64) {
+	return g.screenToWorld(sx, sy)
+}
+
+func (g *Game) IsMouseOver(mx, my int) bool {
+	return g.ui.IsMouseOver(mx, my)
+}
+
+func (g *Game) RequestScreenshot() {
+	g.screenshotRequested = true
+}
+
+func (g *Game) RunEngine() {
+	if g.engine != nil {
+		g.engine.Run()
+	}
+}
+
+func (g *Game) SaveState(filename string) error {
+	return SaveState(g, filename)
+}
+
+func (g *Game) GetCardAt(wx, wy float64) interface{} {
+	c := g.getCardAt(wx, wy)
+	if c == nil {
+		return nil
+	}
+	return c
+}
+
+func (g *Game) AddTextCardHandle(wx, wy float64) interface{} {
+	return g.AddTextCard(wx, wy)
+}
+
+func (g *Game) DeleteCardHandle(card interface{}) {
+	if c, ok := card.(*Card); ok {
+		g.DeleteCard(c)
+	}
+}
+
+func (g *Game) DuplicateCardHandle(card interface{}) {
+	if c, ok := card.(*Card); ok {
+		g.DuplicateCard(c)
+	}
+}
+
+func (g *Game) IsInputPortConnectedHandle(cardID, portName string) bool {
+	return g.IsInputPortConnected(cardID, portName)
+}
+
+func (g *Game) GetCardID(card interface{}) string {
+	if c, ok := card.(*Card); ok {
+		return c.ID
+	}
+	return ""
+}
+
+func (g *Game) GetCardTitle(card interface{}) string {
+	if c, ok := card.(*Card); ok {
+		return c.Title
+	}
+	return ""
+}
+
+func (g *Game) GetCardBounds(card interface{}) (float64, float64, float64, float64) {
+	if c, ok := card.(*Card); ok {
+		return c.X, c.Y, c.Width, c.Height
+	}
+	return 0, 0, 0, 0
+}
+
+func (g *Game) SetCardBounds(card interface{}, x, y, w, h float64) {
+	if c, ok := card.(*Card); ok {
+		c.X = x
+		c.Y = y
+		c.Width = w
+		c.Height = h
+	}
+}
+
+func (g *Game) GetCornerAt(card interface{}, wx, wy, zoom float64) int {
+	if c, ok := card.(*Card); ok {
+		return c.GetCornerAt(wx, wy, zoom)
+	}
+	return -1
+}
+
+func (g *Game) GetPortAt(card interface{}, wx, wy, zoom float64) *input.PortInfo {
+	if c, ok := card.(*Card); ok {
+		p := c.GetPortAt(wx, wy, zoom)
+		if p == nil {
+			return nil
+		}
+		return &input.PortInfo{Name: p.Name, Type: p.Type, IsInput: p.IsInput}
+	}
+	return nil
+}
+
+func (g *Game) GetOutputPortPosition(card interface{}, portName string) (float64, float64) {
+	if c, ok := card.(*Card); ok {
+		return c.GetOutputPortPosition(portName)
+	}
+	return 0, 0
+}
+
+// ApplyPan applies a pan delta in screen pixels; called from input system.
+func (g *Game) ApplyPan(dx, dy float64) {
+	g.camera.X -= dx / g.camera.Zoom
+	g.camera.Y -= dy / g.camera.Zoom
+
+	if g.camera.X < CameraLimitMin {
+		g.camera.X = CameraLimitMin
+	}
+	if g.camera.Y < CameraLimitMin {
+		g.camera.Y = CameraLimitMin
+	}
+}
+
+func (g *Game) RegisterSubscriptionHandle(fromID, toID, toPort string) {
+	g.RegisterSubscription(fromID, toID, toPort)
+}
+
+func (g *Game) UnregisterSubscriptionHandle(fromID, toID, toPort string) {
+	g.UnregisterSubscription(fromID, toID, toPort)
+}
+
+func (g *Game) PropagateTextByID(cardID string) {
+	c := g.getCardByID(cardID)
+	if c != nil {
+		g.PropagateText(c)
+	}
 }
