@@ -33,6 +33,7 @@ type Host interface {
 	GetCornerAt(card interface{}, wx, wy, zoom float64) int
 	GetPortAt(card interface{}, wx, wy, zoom float64) *PortInfo
 	GetOutputPortPosition(card interface{}, portName string) (float64, float64)
+	CheckActionButton(card interface{}, wx, wy float64) string // returns "delete", "duplicate", or ""
 	ApplyPan(dx, dy float64)
 	RegisterSubscription(fromID, toID, toPort string)
 	UnregisterSubscription(fromID, toID, toPort string)
@@ -168,9 +169,17 @@ func (is *InputSystem) handleMouseInteraction(mx, my int, wx, wy float64, overUI
 		if isDoubleClick {
 			card := is.host.GetCardAt(wx, wy)
 			if card != nil {
-				// Action buttons handled by host via Delete/Duplicate when requested
-				// Start editing for text cards: host should decide if editable
-				// For simplicity, if host reports card ID, enter editing mode
+				// Check action buttons first (delete/duplicate)
+				action := is.host.CheckActionButton(card, wx, wy)
+				if action == "delete" {
+					is.host.DeleteCardHandle(card)
+					return
+				} else if action == "duplicate" {
+					is.host.DuplicateCardHandle(card)
+					return
+				}
+
+				// Start editing for text cards
 				is.EditingCard = card
 			} else {
 				newCard := is.host.AddTextCardHandle(wx, wy)
@@ -179,8 +188,17 @@ func (is *InputSystem) handleMouseInteraction(mx, my int, wx, wy float64, overUI
 			return
 		}
 
-		// Single click logic - check for resize corners first
+		// Single click logic - check action buttons first
 		if card := is.host.GetCardAt(wx, wy); card != nil {
+			action := is.host.CheckActionButton(card, wx, wy)
+			if action == "delete" {
+				is.host.DeleteCardHandle(card)
+				return
+			} else if action == "duplicate" {
+				is.host.DuplicateCardHandle(card)
+				return
+			}
+
 			// Check if clicking on a resize corner
 			corner := is.host.GetCornerAt(card, wx, wy, 1.0)
 			if corner != -1 {

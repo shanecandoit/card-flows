@@ -475,6 +475,29 @@ func (g *Game) ApplyPan(dx, dy float64) {
 	}
 }
 
+// CheckActionButton checks if world coordinates wx,wy are clicking on an action button
+// Returns "delete", "duplicate", or "" if no button is clicked
+func (g *Game) CheckActionButton(card interface{}, wx, wy float64) string {
+	c, ok := card.(*Card)
+	if !ok {
+		return ""
+	}
+
+	// X button (Delete)
+	if wx >= c.X+(c.Width-CardActionButtonWidth-5) && wx <= c.X+c.Width-5 &&
+		wy >= c.Y+5 && wy <= c.Y+5+CardActionButtonHeight {
+		return "delete"
+	}
+
+	// ++ button (Duplicate)
+	if wx >= c.X+(c.Width-2*CardActionButtonWidth-10) && wx <= c.X+(c.Width-CardActionButtonWidth-10) &&
+		wy >= c.Y+5 && wy <= c.Y+5+CardActionButtonHeight {
+		return "duplicate"
+	}
+
+	return ""
+}
+
 func (g *Game) RegisterSubscriptionHandle(fromID, toID, toPort string) {
 	g.RegisterSubscription(fromID, toID, toPort)
 }
