@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"card-flows/canvas"
+	"card-flows/ui"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -25,7 +26,7 @@ type Game struct {
 
 	// Sub-systems
 	input  *InputSystem
-	ui     *UISystem
+	ui     *ui.UISystem
 	engine *Engine
 
 	screenshotRequested bool
@@ -41,7 +42,23 @@ func NewGame() *Game {
 	g.FontFace = LoadUIFont()
 
 	g.input = NewInputSystem(g)
-	g.ui = NewUISystem(g)
+	g.ui = ui.NewUISystem(
+		func() font.Face { return g.FontFace },
+		func() (int, int) { return g.screenWidth, g.screenHeight },
+		func() {
+			newZoom := g.camera.Zoom * (1 + ZoomSpeed)
+			if newZoom < ZoomLimitMax {
+				g.camera.Zoom = newZoom
+			}
+		},
+		func() {
+			newZoom := g.camera.Zoom / (1 + ZoomSpeed)
+			if newZoom > ZoomLimitMin {
+				g.camera.Zoom = newZoom
+			}
+		},
+		DrawTextLines,
+	)
 	g.engine = NewEngine(g)
 
 	err := LoadState(g, "state.yaml")
