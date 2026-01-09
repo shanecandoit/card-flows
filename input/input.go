@@ -28,6 +28,8 @@ type Host interface {
 	IsInputPortConnected(cardID, portName string) bool
 	GetCardID(card interface{}) string
 	GetCardTitle(card interface{}) string
+	GetCardText(card interface{}) string
+	SetCardText(card interface{}, text string)
 	GetCardBounds(card interface{}) (x, y, w, h float64)
 	SetCardBounds(card interface{}, x, y, w, h float64)
 	GetCornerAt(card interface{}, wx, wy, zoom float64) int
@@ -132,10 +134,24 @@ func (is *InputSystem) handleTextEditing(wx, wy float64) bool {
 		return false
 	}
 
-	// Append input chars via host: host will update the card text
-	// For simplicity, no per-char callback here; host is responsible for read/write
+	// Per-character input: read current text via host, append new chars, and write back
+	cur := is.host.GetCardText(is.EditingCard)
+	newText := string(ebiten.AppendInputChars([]rune(cur)))
+	if newText != cur {
+		is.host.SetCardText(is.EditingCard, newText)
+	}
 
-	// Handle Backspace and Enter via inpututil as before; commit via host
+	// Backspace handling
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+		if len(cur) > 0 {
+			// remove last rune safely
+			runes := []rune(cur)
+			runes = runes[:len(runes)-1]
+			is.host.SetCardText(is.EditingCard, string(runes))
+		}
+	}
+
+	// Commit editing on Enter or clicking outside the card
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) ||
 		(inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && is.host.GetCardAt(wx, wy) != is.EditingCard) {
 
@@ -179,10 +195,13 @@ func (is *InputSystem) handleMouseInteraction(mx, my int, wx, wy float64, overUI
 					return
 				}
 
-				// Start editing for text cards
+				// Start editing for text cards — stop any panning to avoid camera jump
+				is.isPanning = false
 				is.EditingCard = card
 			} else {
 				newCard := is.host.AddTextCardHandle(wx, wy)
+				// New card created for editing — ensure panning is stopped
+				is.isPanning = false
 				is.EditingCard = newCard
 			}
 			return
@@ -303,8 +322,9 @@ func (is *InputSystem) handleDragging(wx, wy float64) {
 }
 
 func (is *InputSystem) handlePanning(mx, my int, overUI bool) {
-	isPanButtonHeld := ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) ||
-		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && is.ActiveCard == nil && is.ResizingCard == nil && !overUI)
+	// Do not allow panning while editing a card to avoid camera jumps.
+	isPanButtonHeld := (ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle) ||
+		(ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && is.ActiveCard == nil && is.ResizingCard == nil && !overUI)) && is.EditingCard == nil
 
 	if !is.isPanning {
 		if isPanButtonHeld {

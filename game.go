@@ -421,6 +421,19 @@ func (g *Game) GetCardTitle(card interface{}) string {
 	return ""
 }
 
+func (g *Game) GetCardText(card interface{}) string {
+	if c, ok := card.(*Card); ok {
+		return c.Text
+	}
+	return ""
+}
+
+func (g *Game) SetCardText(card interface{}, text string) {
+	if c, ok := card.(*Card); ok {
+		c.Text = text
+	}
+}
+
 func (g *Game) GetCardBounds(card interface{}) (float64, float64, float64, float64) {
 	if c, ok := card.(*Card); ok {
 		return c.X, c.Y, c.Width, c.Height
