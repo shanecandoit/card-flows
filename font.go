@@ -2,8 +2,8 @@ package main
 
 import (
 	"image/color"
-	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -14,7 +14,7 @@ import (
 
 // LoadUIFont attempts to load fonts/Roboto-Regular.ttf. If it fails, returns basicfont.Face7x13.
 func LoadUIFont() font.Face {
-	data, err := ioutil.ReadFile("fonts/Roboto-Regular.ttf")
+	data, err := os.ReadFile("fonts/Roboto-Regular.ttf")
 	if err != nil {
 		log.Println("LoadUIFont: fonts/Roboto-Regular.ttf not found, using basic font:", err)
 		return basicfont.Face7x13
