@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"card-flows/canvas"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"golang.org/x/image/font"
@@ -17,7 +19,7 @@ import (
 type Game struct {
 	cards        []*Card
 	arrows       []*Arrow
-	camera       Camera
+	camera       canvas.Camera
 	screenWidth  int
 	screenHeight int
 
@@ -32,7 +34,7 @@ type Game struct {
 
 func NewGame() *Game {
 	g := &Game{
-		camera: Camera{X: DefaultCameraX, Y: DefaultCameraY, Zoom: DefaultCameraZoom},
+		camera: canvas.Camera{X: DefaultCameraX, Y: DefaultCameraY, Zoom: DefaultCameraZoom},
 		cards:  []*Card{},
 	}
 
