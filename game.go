@@ -151,7 +151,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	cw := float64(g.screenWidth) / 2
 	ch := float64(g.screenHeight) / 2
 
-	g.drawBackgroundGrid(screen, cw, ch)
+	canvas.DrawBackgroundGrid(&g.camera, screen, cw, ch, g.screenWidth, g.screenHeight, GridSizeSmall, GridSizeLarge, ColorGrid, ColorGridBlocked, ColorOriginCross)
 
 	mx, my := ebiten.CursorPosition()
 	wx, wy := g.screenToWorld(float64(mx), float64(my))
